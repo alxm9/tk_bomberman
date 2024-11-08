@@ -1,2 +1,3 @@
-# tk_bomberman
-Tkinter Bomberman
+# Tkinter Bomberman
+
+WIP
