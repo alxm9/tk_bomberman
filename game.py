@@ -4,6 +4,8 @@ import threading
 import time
 import os
 
+from PIL import Image, ImageTk
+
 map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 	[1,0,0,0,2,2,2,2,2,2,0,0,0,0,1],
@@ -71,9 +73,9 @@ class App():
 		self.key_pressed = False
 
 	def bindings(self,event):
-		lock = threading.Lock()
+		# lock = threading.Lock()
 		if self.key_pressed == False:
-			lock.acquire()
+			# lock.acquire()
 			player = Creature.creatures["bomberman"]
 			binds = {
 			# "x" : lambda: self.debug_destroy_random,
@@ -82,11 +84,10 @@ class App():
 			"Left" : lambda: player.move("Left"),
 			"Right" : lambda: player.move("Right")
 			}
-			print("here")
 			# print(event)
 			if event.keysym in binds:
 				binds[event.keysym]()
-			lock.release()
+			# lock.release()
 			
 
 	def populate_creatures(self):
@@ -102,23 +103,34 @@ class Creature():
 	creatures = {}
 	
 	def __init__(self,location, kind):
-		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3"]
+		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3"] # Used to import the frames
 		self.frame_dict = {} # "stand":photoimage location
+		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.location = location
 		self.kind = "bomberman"
-		self.speed = 2
+		self.speed = 10 # Lower = faster
 		self.passable = True # When running passable check, enemy AI can walk towards you
 		self.destructible = True
 		self.moving = False # can't move if you're already moving
 		self.shape_assign()
 		self.creatures[self.kind] = self
 
+	def frameflip_check(self, direction):
+		if direction == self.facing:
+			return
+		self.facing = direction
+		for frame in self.possible_frames:
+			img = ImageTk.getimage(self.frame_dict[frame])
+			img = img.transpose(Image.FLIP_LEFT_RIGHT)
+			img = ImageTk.PhotoImage(img)
+			self.frame_dict[frame] = img
+		
 	def shape_assign(self):
 		self.frame_dict = {} # photoimage, shape_
 		for frame in self.possible_frames:
-			frame_img = PhotoImage(file=f"sprites/{self.kind}/{frame}.png")
+			img = Image.open(f"sprites/{self.kind}/{frame}.png") #PIL transposeable image
+			frame_img = ImageTk.PhotoImage(img)
 			self.frame_dict[frame] = frame_img
-		print("DICT",self.frame_dict)
 		self.current_frame = App.canvas.create_image(60,40,image=self.frame_dict["stand"])
 
 	def shape_grabber(self):
@@ -133,19 +145,23 @@ class Creature():
 		if (self.moving == True) or (self.passable_check(direction, dx_dy) is True):
 			return # Space occupied
 		self.moving = True
+		self.frameflip_check(direction)
 		self.move_tick(dx_dy,0)
 
-	def move_tick(self,dx_dy,counter):
+	def move_tick(self,dx_dy,counter,frame_to_print = [1,2,3,2]):
 		cur_x, cur_y = App.canvas.coords(self.current_frame)
 		if counter == 40:
 			self.location = (self.location[0]+dx_dy[0], self.location[1]+dx_dy[1])
 			self.moving = False
 			self.place_image(cur_x,cur_y,"stand")
 			return
+		if counter%10 == 0:
+			popped = frame_to_print.pop(0)
+			frame_to_print.append(popped)
 		counter += 1
-		self.place_image(cur_x,cur_y,self.possible_frames[(counter%3)+1])
+		self.place_image(cur_x,cur_y,self.possible_frames[frame_to_print[0]])
 		App.canvas.move(self.current_frame, dx_dy[0], dx_dy[1])
-		App.canvas.after(10, self.move_tick, dx_dy, counter)
+		App.canvas.after(self.speed, self.move_tick, dx_dy, counter, frame_to_print)
 
 	def place_image(self,x,y,frame):
 		App.canvas.delete(self.current_frame)
