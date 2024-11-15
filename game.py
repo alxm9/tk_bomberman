@@ -1,6 +1,6 @@
 from tkinter import *
-import random
 import threading
+import random
 import time
 import os
 
@@ -23,51 +23,55 @@ map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible
 	[1,0,0,2,2,0,2,2,2,2,0,0,0,0,1],
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ]
-tile_dict = {}
-item_dict = {}
 
 class App():
-	graphics = {} # Don't'. Find another way
+	# graphics = {} # Don't'. Find another way
 	interface = Tk()
+	width = 600
+	height = 600
 	interface.geometry("600x600")
 	canvas = Canvas(interface, bg = "green", width = 600, height = 600)
 	canvas.pack()
+	tile_sqpixels = 40
 	
 	def __init__(self):
+		self.window = True
 		self.populate_tiles()
 		self.populate_creatures()
 		self.interface.bind("<Key>", lambda event: self.bindings(event))
-		# self.interface.bind("<KeyRelease>", lambda: self.release)
-		# self.worker = threading.Thread(target=self.gameloop)
-		# self.worker.start()
+		self.interface.bind("<Destroy>", lambda event: self.closegame())
+		self.interface.bind("<Escape>", lambda event: self.interface.destroy())
 		self.key_pressed = False
+		self.worker = threading.Thread(target=self.gameloop)
+		self.worker.start()
 		self.interface.mainloop()
 	
 	def gameloop(self):
 		self.lock = threading.Lock()
-		while True:
+		while self.window:
 			self.lock.acquire()
 			time.sleep(1)
-			print("test")
+			print("tick")
 			self.lock.release()
 
+	def closegame(self):
+		self.window = False
+
 	def populate_tiles(self): # Draws map based on map_pattern
-		color_list = ["grey","#3d4a38"]
+		wall_list = ["wall","strongwall"]
 		
 		for row in range(15): # Adds some variety to the floor
 			for column in range(15):
 				if (column%2) == 1 and (row%2)==1:
-					self.canvas.create_rectangle(0+(40*row),0+(40*column),40+(40*row),40+(40*column), fill="#439229", width=0)
+					self.canvas.create_rectangle((40*row),(40*column),40+(40*row),40+(40*column), fill="#439229", width=0)
 		
 		for row_index, row in enumerate(map_pattern): # Adds tiles
 			for column_index, column in enumerate(row):
 				if row[column_index] == 0:
 					continue
-				x0,y0,x1,y1 = 0+(40*column_index),0+(40*row_index),40+(40*column_index),40+(40*row_index)
-				color = color_list[row[column_index]%2]
-				self.graphics[(row_index,column_index)] = self.canvas.create_rectangle(x0,y0,x1,y1, fill=color, width=2)
-				destructible = True if color==color_list[0] else False
-				tile = Tile((row_index,column_index),destructible,self.graphics[(row_index,column_index)])
+				wall = wall_list[row[column_index]%2]
+				destructible = True if column_index == 1 else False
+				tile = Tile((row_index,column_index),destructible,wall)
 				
 	def release(self):
 		self.key_pressed = False
@@ -82,13 +86,12 @@ class App():
 			"Down" : lambda: player.move("Down"),
 			"Up" : lambda: player.move("Up"),
 			"Left" : lambda: player.move("Left"),
-			"Right" : lambda: player.move("Right")
+			"Right" : lambda: player.move("Right"),
 			}
 			# print(event)
 			if event.keysym in binds:
 				binds[event.keysym]()
 			# lock.release()
-			
 
 	def populate_creatures(self):
 		entity = Creature((1,1),"player")
@@ -105,6 +108,8 @@ class Creature():
 	def __init__(self,location, kind):
 		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3"] # Used to import the frames
 		self.frame_dict = {} # "stand":photoimage location
+		self.current_frame = False
+		self.input_queue = False
 		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.location = location
 		self.kind = "bomberman"
@@ -128,7 +133,7 @@ class Creature():
 	def shape_assign(self):
 		self.frame_dict = {} # photoimage, shape_
 		for frame in self.possible_frames:
-			img = Image.open(f"sprites/{self.kind}/{frame}.png") #PIL transposeable image
+			img = Image.open(f"sprites//{self.kind}//{frame}.png") #PIL transposeable image
 			frame_img = ImageTk.PhotoImage(img)
 			self.frame_dict[frame] = frame_img
 		self.current_frame = App.canvas.create_image(60,40,image=self.frame_dict["stand"])
@@ -144,7 +149,7 @@ class Creature():
 		dx_dy = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}[direction]
 		if (self.moving == True) or (self.passable_check(direction, dx_dy) is True):
 			return # Space occupied
-		self.moving = True
+		# self.moving = True
 		self.frameflip_check(direction)
 		self.move_tick(dx_dy,0)
 
@@ -186,12 +191,26 @@ class Item():
 class Tile(): # Cannot pass through tiles
 	tiles = {}
 	
-	def __init__(self, location, destructible, shape):
+	def __init__(self, location, destructible, kind):
+		self.frame_dict = {} # "tile":photoimage location
+		self.possible_frames = ["strongwall_1"]
 		self.location = location
+		self.kind = kind
 		self.destructible = destructible
-		self.shape = shape
+		self.shape = False
+		self.shape_assign()
 		self.tiles[location] = self
 
+	def shape_assign(self):
+		if self.kind == "wall":
+			self.possible_frames = ["wall_1"]
+		for frame in self.possible_frames:
+			img = Image.open(f"sprites//tiles//{frame}.png") #PIL transposeable image
+			frame_img = ImageTk.PhotoImage(img)
+			self.frame_dict[frame] = frame_img
+		row = self.location[1]*40+20
+		self.current_frame = App.canvas.create_image(self.location[1]*40,self.location[0]*40,image=self.frame_dict[self.kind+"_1"], anchor=NW)
+		
 	def destroy(self): # If destructible tile, gets destroyed when touched by explosion
 		pass
 		# Play destruction animation
