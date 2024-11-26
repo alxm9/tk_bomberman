@@ -3,8 +3,12 @@ import threading
 import random
 import time
 import os
+import platform
 
 from PIL import Image, ImageTk
+
+if platform.system() == "Linux": # Linux handles key presses and releases differently
+	os.system("xset r off")
 
 map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
@@ -39,9 +43,9 @@ class App():
 		self.populate_tiles()
 		self.populate_creatures()
 		# self.interface.bind("<Key>", lambda event: self.bindings(event))
-		self.interface.bind("<Key>", lambda event: self.keys_pressed.append(str(event.keysym)) if event.keysym not in self.keys_pressed else None)
-		self.interface.bind("<KeyRelease>", lambda event: self.keys_pressed.remove(str(event.keysym)) if event.keysym in self.keys_pressed else None)
-		self.interface.bind("<x>", lambda _: print(self.keys_pressed))
+		# self.interface.bind("<x>", lambda _: print(self.keys_pressed))
+		self.interface.bind("<KeyPress>", lambda event: self.keys_pressed.append(str(event.keysym)) if event.keysym not in self.keys_pressed else None)
+		self.interface.bind("<KeyRelease>", lambda event: self.stop_moving(event))
 		self.interface.bind("<Destroy>", lambda event: self.closegame())
 		self.interface.bind("<Escape>", lambda event: self.interface.destroy())
 		self.key_pressed = False
@@ -57,11 +61,21 @@ class App():
 			time.sleep(0.1)
 			if len(self.keys_pressed) > 0:
 				self.bindings(self.keys_pressed[0])
+			if len(self.keys_pressed) == 0:
+				pass # restore standing sprite
 			# for key, creature in Creature.creatures.items():
 			# 	creature.move()
 			# print("tick")
 			self.lock.release()
 
+	def stop_moving(self,event):
+		player = Creature.creatures["bomberman"]
+		player.moving = False
+		# print(event)
+		# print("being ran")
+		self.keys_pressed.remove(str(event.keysym)) if event.keysym in self.keys_pressed else None
+
+		
 	def closegame(self):
 		self.window = False
 
@@ -80,34 +94,15 @@ class App():
 				wall = wall_list[row[column_index]%2]
 				destructible = True if column_index == 1 else False
 				tile = Tile((row_index,column_index),destructible,wall)
-				
-	def release(self):
-		self.key_pressed = False
 
 	def bindings(self,key):
 		# lock = threading.Lock()
 		if self.key_pressed == False:
 			# lock.acquire()
 			player = Creature.creatures["bomberman"]
-			# binds = {
-			# # "x" : lambda: self.debug_destroy_random,
-			# "Down" : lambda: player.move("Down"),
-			# "Up" : lambda: player.move("Up"),
-			# "Left" : lambda: player.move("Left"),
-			# "Right" : lambda: player.move("Right"),
-			# }
-			# binds = {
-			# # "x" : lambda: self.debug_destroy_random,
-			# "Down" : player.move,
-			# "Up" : player.move,
-			# "Left" : player.move,
-			# "Right" : player.move,
-			# }
-			binds = ["Down", "Up", "Left", "Right"]
-			# print(event)
-			# if event.keysym in binds:
-			# 	player.move(event.keysym)
-			if key in binds:
+			movements = ["Down", "Up", "Left", "Right"]
+			if key in movements:
+				# player.moving = True
 				player.move(key)
 			# lock.release()
 
@@ -164,10 +159,10 @@ class Creature():
 		proposed_loc = (self.location[1]+dx_dy[1],self.location[0]+dx_dy[0])
 		return Tile.find_by_location(proposed_loc)
 
-	def add_move(self, direction):
-		dx_dy = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}[direction]
-		if len(self.move_queue) < 2:
-			self.move_queue.append(dx_dy)
+	# def add_move(self, direction):
+	# 	dx_dy = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}[direction]
+	# 	if len(self.move_queue) < 2:
+	# 		self.move_queue.append(dx_dy)
 
 	# def move(self):
 	# 	print("here")
@@ -176,21 +171,23 @@ class Creature():
 	# 			self.moving = True
 	# 			print("aaa")
 	# 			self.move_tick(movement,0)
+
 	def move(self, direction):
 		dx_dy = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}[direction]
 		if (self.moving == True) or (self.passable_check(direction, dx_dy) is True):
 			return # Space occupied
 		self.moving = True
 		self.frameflip(direction)
-		self.move_tick(dx_dy,0)
-		print("here")
+		self.move_tick(dx_dy, 0)
 
 	def move_tick(self,dx_dy,counter,frame_to_print = [1,2,3,2]):
 		cur_x, cur_y = App.canvas.coords(self.current_frame)
-		if counter == 39:
+		if counter == 40:
 			self.location = (self.location[0]+dx_dy[0], self.location[1]+dx_dy[1])
-			self.moving = False
+			if self.moving == True:
+				App.canvas.after(self.speed, self.move_tick, dx_dy, 0, frame_to_print)
 			self.place_image(cur_x,cur_y,"stand")
+			# self.
 			# del self.move_queue[0]
 			# print("deleted")
 			return
@@ -260,3 +257,6 @@ class Tile(): # Cannot pass through tiles
 		return location in self.tiles
 
 app = App()
+
+if platform.system() == "Linux":
+	os.system("xset r on")
