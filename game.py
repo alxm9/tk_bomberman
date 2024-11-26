@@ -38,10 +38,14 @@ class App():
 		self.window = True
 		self.populate_tiles()
 		self.populate_creatures()
-		self.interface.bind("<Key>", lambda event: self.bindings(event))
+		# self.interface.bind("<Key>", lambda event: self.bindings(event))
+		self.interface.bind("<Key>", lambda event: self.keys_pressed.append(str(event.keysym)) if event.keysym not in self.keys_pressed else None)
+		self.interface.bind("<KeyRelease>", lambda event: self.keys_pressed.remove(str(event.keysym)) if event.keysym in self.keys_pressed else None)
+		self.interface.bind("<x>", lambda _: print(self.keys_pressed))
 		self.interface.bind("<Destroy>", lambda event: self.closegame())
 		self.interface.bind("<Escape>", lambda event: self.interface.destroy())
 		self.key_pressed = False
+		self.keys_pressed = [] # keys currently being pressed
 		self.worker = threading.Thread(target=self.gameloop)
 		self.worker.start()
 		self.interface.mainloop()
@@ -50,8 +54,12 @@ class App():
 		self.lock = threading.Lock()
 		while self.window:
 			self.lock.acquire()
-			time.sleep(1)
-			print("tick")
+			time.sleep(0.1)
+			if len(self.keys_pressed) > 0:
+				self.bindings(self.keys_pressed[0])
+			# for key, creature in Creature.creatures.items():
+			# 	creature.move()
+			# print("tick")
 			self.lock.release()
 
 	def closegame(self):
@@ -76,21 +84,31 @@ class App():
 	def release(self):
 		self.key_pressed = False
 
-	def bindings(self,event):
+	def bindings(self,key):
 		# lock = threading.Lock()
 		if self.key_pressed == False:
 			# lock.acquire()
 			player = Creature.creatures["bomberman"]
-			binds = {
-			# "x" : lambda: self.debug_destroy_random,
-			"Down" : lambda: player.move("Down"),
-			"Up" : lambda: player.move("Up"),
-			"Left" : lambda: player.move("Left"),
-			"Right" : lambda: player.move("Right"),
-			}
+			# binds = {
+			# # "x" : lambda: self.debug_destroy_random,
+			# "Down" : lambda: player.move("Down"),
+			# "Up" : lambda: player.move("Up"),
+			# "Left" : lambda: player.move("Left"),
+			# "Right" : lambda: player.move("Right"),
+			# }
+			# binds = {
+			# # "x" : lambda: self.debug_destroy_random,
+			# "Down" : player.move,
+			# "Up" : player.move,
+			# "Left" : player.move,
+			# "Right" : player.move,
+			# }
+			binds = ["Down", "Up", "Left", "Right"]
 			# print(event)
-			if event.keysym in binds:
-				binds[event.keysym]()
+			# if event.keysym in binds:
+			# 	player.move(event.keysym)
+			if key in binds:
+				player.move(key)
 			# lock.release()
 
 	def populate_creatures(self):
@@ -100,6 +118,7 @@ class App():
 		key = random.choice(list(tile_dict))
 		if tile_dict[key].destructible == True:
 			self.canvas.delete(tile_dict[key].shape)
+			print("deleted")
 			del tile_dict[key]
 			
 class Creature():
@@ -110,20 +129,20 @@ class Creature():
 		self.frame_dict = {} # "stand":photoimage location
 		self.current_frame = False
 		self.input_queue = False
-		self.facing = "Left" # Direction currently facing. For frame flip check.
+		# self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.location = location
 		self.kind = "bomberman"
 		self.speed = 10 # Lower = faster
 		self.passable = True # When running passable check, enemy AI can walk towards you
 		self.destructible = True
 		self.moving = False # can't move if you're already moving
+		self.move_queue = []
 		self.shape_assign()
 		self.creatures[self.kind] = self
 
-	def frameflip_check(self, direction):
-		if direction == self.facing:
+	def frameflip(self, direction):
+		if direction == "Right":
 			return
-		self.facing = direction
 		for frame in self.possible_frames:
 			img = ImageTk.getimage(self.frame_dict[frame])
 			img = img.transpose(Image.FLIP_LEFT_RIGHT)
@@ -144,25 +163,39 @@ class Creature():
 	def passable_check(self,direction,dx_dy):
 		proposed_loc = (self.location[1]+dx_dy[1],self.location[0]+dx_dy[0])
 		return Tile.find_by_location(proposed_loc)
-				
+
+	def add_move(self, direction):
+		dx_dy = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}[direction]
+		if len(self.move_queue) < 2:
+			self.move_queue.append(dx_dy)
+
+	# def move(self):
+	# 	print("here")
+	# 	if len(self.move_queue) > 0:
+	# 		for movement in self.move_queue[:]:
+	# 			self.moving = True
+	# 			print("aaa")
+	# 			self.move_tick(movement,0)
 	def move(self, direction):
 		dx_dy = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}[direction]
 		if (self.moving == True) or (self.passable_check(direction, dx_dy) is True):
 			return # Space occupied
-		# self.moving = True
-		self.frameflip_check(direction)
+		self.moving = True
+		self.frameflip(direction)
 		self.move_tick(dx_dy,0)
+		print("here")
 
 	def move_tick(self,dx_dy,counter,frame_to_print = [1,2,3,2]):
 		cur_x, cur_y = App.canvas.coords(self.current_frame)
-		if counter == 40:
+		if counter == 39:
 			self.location = (self.location[0]+dx_dy[0], self.location[1]+dx_dy[1])
 			self.moving = False
 			self.place_image(cur_x,cur_y,"stand")
+			# del self.move_queue[0]
+			# print("deleted")
 			return
 		if counter%10 == 0:
-			popped = frame_to_print.pop(0)
-			frame_to_print.append(popped)
+			frame_to_print.append(frame_to_print.pop(0)) # cycles through the frames
 		counter += 1
 		self.place_image(cur_x,cur_y,self.possible_frames[frame_to_print[0]])
 		App.canvas.move(self.current_frame, dx_dy[0], dx_dy[1])
