@@ -12,7 +12,7 @@ if platform.system() == "Linux": # Linux handles key presses and releases differ
 
 map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-	[1,0,0,0,2,2,2,2,2,2,0,0,0,0,1],
+	[1,0,0,0,0,0,0,0,0,2,0,0,0,0,1],
 	[1,0,1,0,1,2,1,2,1,0,1,0,1,0,1],
 	[1,2,2,0,2,2,2,2,0,0,0,0,0,0,1],
 	[1,2,1,0,1,0,1,2,1,0,1,0,1,0,1],
@@ -28,12 +28,15 @@ map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ]
 
-keys_held = {
-    1: "",
-    2: "",
-    3: "",
-    4: ""
-}
+# keys_held = {
+#     1: "",
+#     2: "",
+#     3: "",
+#     4: ""
+# }
+keys_held = []
+
+movement_inputs = ["Up", "Down", "Left", "Right"]
 
 class App():
 	# graphics = {} # Don't'. Find another way
@@ -55,55 +58,60 @@ class App():
 		self.interface.bind("<KeyRelease>", lambda event: self.stop_holding(event))
 		self.interface.bind("<Destroy>", lambda event: self.closegame())
 		self.interface.bind("<Escape>", lambda event: self.interface.destroy())
+		self.key_held = ""
 		self.player = Creature.creatures["bomberman"]
 		self.keys_pressed = [] # keys currently being pressed
 		self.worker = threading.Thread(target=self.gameloop)
 		self.worker.start()
 		self.interface.mainloop()
-	
+
+	def input_handler(self):
+		if len(keys_held) == 0:
+			return
+		if keys_held[0] in movement_inputs:
+			self.player.move(keys_held[0])	
+					
 	def gameloop(self):
 		self.lock = threading.Lock()
 		while self.window:
-			self.lock.acquire()
-			time.sleep(0.1)
-			print(keys_held)
-			if keys_held[1] != "":
-				self.bindings(keys_held[1])
-			# if len(self.keys_pressed) > 0:
-			# 	self.bindings(self.keys_pressed[0])
-			# if len(self.keys_pressed) == 0:
-			# 	pass # restore standing sprite
-			# for key, creature in Creature.creatures.items():
-			# 	creature.move()
-			# print("tick")
-			self.lock.release()
+			with self.lock:
+				time.sleep(0.1)
+				print(keys_held)
+				self.input_handler()
 
 	# def start_holding(self,event):
 	# 	self.player.keyheld = True
 	# 	self.keys_pressed.append(str(event.keysym)) if event.keysym not in self.keys_pressed else None
 	def start_holding(self, event):
+		if len(keys_held) != 0:
+			keys_held.insert(0, event.keysym)
+			return
 		# self.player.keyheld = True
-		for key in keys_held:
-			if keys_held[key] == "":
-				keys_held[key] = event.keysym
-				return
+		# for key in keys_held:
+		# 	if keys_held[key] == "":
+		# 		keys_held[key] = event.keysym
+		# 		return
+		keys_held.append(event.keysym)
 
 	# def stop_holding(self,event):
 	# 	self.player.keyheld = False
 	# 	self.keys_pressed.remove(str(event.keysym)) if event.keysym in self.keys_pressed else None
 	def stop_holding(self, event):
 		# self.player.keyheld = False
-		for key in keys_held:
-			if keys_held[key] == event.keysym:
-				keys_held[key] = ""
-		for key in range(4,1,-1):
-			if keys_held[key] == "":
-				continue
-			if keys_held[key] != "":
-				if keys_held[key-1] == "":
-					keys_held[key-1] = keys_held[key]
-					keys_held[key] = ""
-					self.stop_holding(event)
+		if len(keys_held) > 1:
+			keys_held[0], keys_held[1] = keys_held[1], keys_held[0]
+		keys_held.remove(event.keysym) if event.keysym in keys_held else None
+		# for key in keys_held:
+		# 	if keys_held[key] == event.keysym:
+		# 		keys_held[key] = ""
+		# for key in range(4,1,-1):
+		# 	if keys_held[key] == "":
+		# 		continue
+		# 	if keys_held[key] != "":
+		# 		if keys_held[key-1] == "":
+		# 			keys_held[key-1] = keys_held[key]
+		# 			keys_held[key] = ""
+		# 			self.stop_holding(event)
 		
 	def closegame(self):
 		self.window = False
@@ -124,11 +132,6 @@ class App():
 				destructible = True if column_index == 1 else False
 				tile = Tile((row_index,column_index),destructible,wall)
 
-	def bindings(self,key):
-		movements = ["Down", "Up", "Left", "Right"]
-		if key in movements:
-			self.player.move(key)
-
 	def populate_creatures(self):
 		entity = Creature((1,1),"player")
 
@@ -143,10 +146,10 @@ class Creature():
 	creatures = {}
 	
 	def __init__(self,location, kind):
-		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3"] # Used to import the frames
+		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_7"] # Used to import the frames
 		self.frame_dict = {} # "stand":photoimage location
 		self.current_frame = False
-		# self.facing = "Left" # Direction currently facing. For frame flip check.
+		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.location = location
 		self.dx_dy = {0,0}
 		self.kind = "bomberman"
@@ -154,15 +157,12 @@ class Creature():
 		self.passable = True # When running passable check, enemy AI can walk towards you
 		self.destructible = True
 		self.moving = False # can't move if you're already moving
-		# self.keyheld = False
 		self.trajectory = False
 		self.move_queue = []
 		self.shape_assign()
 		self.creatures[self.kind] = self
 
-	def frameflip(self, direction):
-		if direction == "Right":
-			return
+	def frameflip(self):
 		for frame in self.possible_frames:
 			img = ImageTk.getimage(self.frame_dict[frame])
 			img = img.transpose(Image.FLIP_LEFT_RIGHT)
@@ -170,7 +170,6 @@ class Creature():
 			self.frame_dict[frame] = img
 		
 	def shape_assign(self):
-		self.frame_dict = {} # photoimage, shape_
 		for frame in self.possible_frames:
 			img = Image.open(f"sprites//{self.kind}//{frame}.png") #PIL transposeable image
 			frame_img = ImageTk.PhotoImage(img)
@@ -188,24 +187,36 @@ class Creature():
 		# cur_x, cur_y = App.canvas.coords(self.current_frame)
 		dx_dy = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}[direction]
 		if (self.moving == True) or (self.occupied_check(dx_dy)):
+			# if (len(keys_held) > 1) and (self.occupied_check(dx_dy)):
+			# 	keys_held[0], keys_held[1] = keys_held[1], keys_held[0]
 			return # Space occupied
 		self.moving = True
 		self.dx_dy = dx_dy
-		self.frameflip(direction)
-		self.move_tick(0)
+		frames_choice = {
+			"Right": [1,2,3,2],
+			"Left": [1,2,3,2],
+			"Down": [4,5],
+			"Up": [6,7] 
+		}[direction]
+		if (direction in ["Right","Left"]) and (direction != self.facing):
+			self.facing = direction
+			self.frameflip()
+		self.move_tick(0, frames_choice)
 
-	def move_tick(self,counter,frame_to_print = [1,2,3,2]):
+	def move_tick(self,counter,frame_to_print):
 			if counter == 40:
 				self.location = (self.location[0]+self.dx_dy[0], self.location[1]+self.dx_dy[1])
 
-				if keys_held[1] == "":
+				# if keys_held[1] == "":
+				if len(keys_held) == 0:
 					self.moving = False
 					self.place_image("stand")
 					return
 				else:
 					self.place_image("stand")
 					self.moving = False
-					self.move(keys_held[1])
+					if keys_held[0] in movement_inputs:
+						self.move(keys_held[0])
 
 				return
 
@@ -229,7 +240,29 @@ class Creature():
 
 class Bomb():
 	def __init__(self):
-		pass
+		self.possible_frames = ["bomb_1","bomb_2","bomb_3","bomb_4"]
+		self.frame_dict = {}
+		self.time = 100
+		self.worker = threading.Thread(target=self.bomb_loop)
+		self.worker.start()
+	
+	def bomb_loop(self):
+		self.lock = threading.Lock()
+		while self.time != 0:
+			with self.lock:
+				print(self.time)
+				# print bomb on screen
+				if self.time%10 == 0:
+					self.possible_frames.append(self.possible_frames.pop(0))
+				self.time -= 1
+				time.sleep(0.1)
+
+
+	def shape_assign(self):
+		for frame in self.possible_frames:
+			img = Image.open(f"sprites//{self.kind}//{frame}.png") #PIL transposeable image
+			frame_img = ImageTk.PhotoImage(img)
+			self.frame_dict[frame] = frame_img
 
 class Item():
 	def __init__(self):
