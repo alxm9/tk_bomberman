@@ -7,12 +7,12 @@ import platform
 
 from PIL import Image, ImageTk
 
-if platform.system() == "Linux": # Linux handles key presses and releases differently
+if platform.system() == "Linux": # Linux handles keys differently
 	os.system("xset r off")
 
-map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible
+map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible, 3-Bomberman
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-	[1,0,0,0,0,0,0,0,0,2,0,0,0,0,1],
+	[1,0,0,3,0,0,0,0,0,2,0,0,0,0,1],
 	[1,0,1,0,1,2,1,2,1,0,1,0,1,0,1],
 	[1,2,2,0,2,2,2,2,0,0,0,0,0,0,1],
 	[1,2,1,0,1,0,1,2,1,0,1,0,1,0,1],
@@ -28,12 +28,6 @@ map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ]
 
-# keys_held = {
-#     1: "",
-#     2: "",
-#     3: "",
-#     4: ""
-# }
 keys_held = []
 
 movement_inputs = ["Up", "Down", "Left", "Right"]
@@ -52,14 +46,12 @@ class App():
 		self.window = True
 		self.populate_tiles()
 		self.populate_creatures()
-		# self.interface.bind("<Key>", lambda event: self.bindings(event))
-		# self.interface.bind("<x>", lambda _: print(self.keys_pressed))
+		# self.interface.bind("<x>", lambda event: self.debug_destroy_random())
 		self.interface.bind("<KeyPress>", lambda event: self.start_holding(event))
 		self.interface.bind("<KeyRelease>", lambda event: self.stop_holding(event))
 		self.interface.bind("<Destroy>", lambda event: self.closegame())
 		self.interface.bind("<Escape>", lambda event: self.interface.destroy())
 		self.key_held = ""
-		self.player = Creature.creatures["bomberman"]
 		self.keys_pressed = [] # keys currently being pressed
 		self.worker = threading.Thread(target=self.gameloop)
 		self.worker.start()
@@ -79,39 +71,16 @@ class App():
 				print(keys_held)
 				self.input_handler()
 
-	# def start_holding(self,event):
-	# 	self.player.keyheld = True
-	# 	self.keys_pressed.append(str(event.keysym)) if event.keysym not in self.keys_pressed else None
 	def start_holding(self, event):
 		if len(keys_held) != 0:
 			keys_held.insert(0, event.keysym)
 			return
-		# self.player.keyheld = True
-		# for key in keys_held:
-		# 	if keys_held[key] == "":
-		# 		keys_held[key] = event.keysym
-		# 		return
 		keys_held.append(event.keysym)
 
-	# def stop_holding(self,event):
-	# 	self.player.keyheld = False
-	# 	self.keys_pressed.remove(str(event.keysym)) if event.keysym in self.keys_pressed else None
 	def stop_holding(self, event):
-		# self.player.keyheld = False
 		if len(keys_held) > 1:
 			keys_held[0], keys_held[1] = keys_held[1], keys_held[0]
 		keys_held.remove(event.keysym) if event.keysym in keys_held else None
-		# for key in keys_held:
-		# 	if keys_held[key] == event.keysym:
-		# 		keys_held[key] = ""
-		# for key in range(4,1,-1):
-		# 	if keys_held[key] == "":
-		# 		continue
-		# 	if keys_held[key] != "":
-		# 		if keys_held[key-1] == "":
-		# 			keys_held[key-1] = keys_held[key]
-		# 			keys_held[key] = ""
-		# 			self.stop_holding(event)
 		
 	def closegame(self):
 		self.window = False
@@ -126,32 +95,44 @@ class App():
 		
 		for row_index, row in enumerate(map_pattern): # Adds tiles
 			for column_index, column in enumerate(row):
-				if row[column_index] == 0:
+				if row[column_index] not in [1,2]:
 					continue
 				wall = wall_list[row[column_index]%2]
 				destructible = True if column_index == 1 else False
 				tile = Tile((row_index,column_index),destructible,wall)
 
 	def populate_creatures(self):
-		entity = Creature((1,1),"player")
+		# self.player = Creature((1,1),"player")
+		for row_index, row in enumerate(map_pattern): # Adds tiles
+			for column_index, column in enumerate(row):
+				if row[column_index] not in [3]:
+					continue
+				creature_type = {
+					3: "bomberman"
+				}[row[column_index]]
+				if creature_type == "bomberman": 
+					print(row_index,column_index)
+					self.player = Creature((2,1),"player")
+					return
+				creature = Creature((row_index,column_index),creature_type)
 
 	def debug_destroy_random(self):
-		key = random.choice(list(tile_dict))
-		if tile_dict[key].destructible == True:
-			self.canvas.delete(tile_dict[key].shape)
+		key = random.choice(list(Tile.entities))
+		if Tile.entities[key].destructible == True:
+			self.canvas.delete(Tile.entities[key].shape)
 			print("deleted")
-			del tile_dict[key]
+			del Tile.entities[key]
 			
 class Creature():
-	creatures = {}
+	entities = {}
 	
 	def __init__(self,location, kind):
+		self.location = location
 		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_7"] # Used to import the frames
 		self.frame_dict = {} # "stand":photoimage location
 		self.current_frame = False
 		self.facing = "Left" # Direction currently facing. For frame flip check.
-		self.location = location
-		self.dx_dy = {0,0}
+		self.dx_dy = 0
 		self.kind = "bomberman"
 		self.speed = 10 # Lower = faster
 		self.passable = True # When running passable check, enemy AI can walk towards you
@@ -160,7 +141,7 @@ class Creature():
 		self.trajectory = False
 		self.move_queue = []
 		self.shape_assign()
-		self.creatures[self.kind] = self
+		self.entities[self.kind] = self
 
 	def frameflip(self):
 		for frame in self.possible_frames:
@@ -174,14 +155,14 @@ class Creature():
 			img = Image.open(f"sprites//{self.kind}//{frame}.png") #PIL transposeable image
 			frame_img = ImageTk.PhotoImage(img)
 			self.frame_dict[frame] = frame_img
-		self.current_frame = App.canvas.create_image(60,40,image=self.frame_dict["stand"])
+		self.current_frame = App.canvas.create_image(20+(40*self.location[1]),40*self.location[0],image=self.frame_dict["stand"])
 
 	def shape_grabber(self):
 		pass
 		
 	def occupied_check(self,dx_dy):
 		proposed_loc = (self.location[1]+dx_dy[1],self.location[0]+dx_dy[0])
-		return Tile.find_by_location(proposed_loc)
+		return find_by_location(Tile, proposed_loc)
 
 	def move(self, direction):
 		# cur_x, cur_y = App.canvas.coords(self.current_frame)
@@ -206,8 +187,6 @@ class Creature():
 	def move_tick(self,counter,frame_to_print):
 			if counter == 40:
 				self.location = (self.location[0]+self.dx_dy[0], self.location[1]+self.dx_dy[1])
-
-				# if keys_held[1] == "":
 				if len(keys_held) == 0:
 					self.moving = False
 					self.place_image("stand")
@@ -217,7 +196,6 @@ class Creature():
 					self.moving = False
 					if keys_held[0] in movement_inputs:
 						self.move(keys_held[0])
-
 				return
 
 			if counter%10 == 0:
@@ -233,12 +211,10 @@ class Creature():
 		x, y = App.canvas.coords(self.current_frame)
 		App.canvas.delete(self.current_frame)
 		self.current_frame = App.canvas.create_image(x,y,image=self.frame_dict[frame])
-		
-	@classmethod
-	def find_by_location(self, location):
-		return location in self.creatures
 
 class Bomb():
+	entities = {}
+
 	def __init__(self):
 		self.possible_frames = ["bomb_1","bomb_2","bomb_3","bomb_4"]
 		self.frame_dict = {}
@@ -257,7 +233,6 @@ class Bomb():
 				self.time -= 1
 				time.sleep(0.1)
 
-
 	def shape_assign(self):
 		for frame in self.possible_frames:
 			img = Image.open(f"sprites//{self.kind}//{frame}.png") #PIL transposeable image
@@ -265,22 +240,24 @@ class Bomb():
 			self.frame_dict[frame] = frame_img
 
 class Item():
+	entities = {}
+
 	def __init__(self):
 		self.passable = True
 		self.destructible = True
 
 class Tile(): # Cannot pass through tiles
-	tiles = {}
+	entities = {}
 	
 	def __init__(self, location, destructible, kind):
+		self.location = location
 		self.frame_dict = {} # "tile":photoimage location
 		self.possible_frames = ["strongwall_1"]
-		self.location = location
 		self.kind = kind
 		self.destructible = destructible
 		self.shape = False
 		self.shape_assign()
-		self.tiles[location] = self
+		self.entities[location] = self
 
 	def shape_assign(self):
 		if self.kind == "wall":
@@ -303,10 +280,9 @@ class Tile(): # Cannot pass through tiles
 		pass
 		# Random chance to assign an item upon
 
-	@classmethod
-	def find_by_location(self, location):
-		return location in self.tiles
-
+def find_by_location(object, location):
+	return location in object.entities
+	
 app = App()
 
 if platform.system() == "Linux":
