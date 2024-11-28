@@ -60,6 +60,10 @@ class App():
 	def input_handler(self):
 		if len(keys_held) == 0:
 			return
+		if "space" in keys_held:
+			self.player.place_bomb()
+			keys_held.remove("space") if "space" in keys_held else None
+			return
 		if keys_held[0] in movement_inputs:
 			self.player.move(keys_held[0])	
 					
@@ -112,9 +116,10 @@ class App():
 				}[row[column_index]]
 				if creature_type == "bomberman": 
 					print(row_index,column_index)
-					self.player = Creature((2,1),"player")
+					self.player = Creature((column_index,row_index),"player")
 					return
-				creature = Creature((row_index,column_index),creature_type)
+				else:
+					creature = Creature((row_index,column_index),creature_type)
 
 	def debug_destroy_random(self):
 		key = random.choice(list(Tile.entities))
@@ -143,6 +148,9 @@ class Creature():
 		self.shape_assign()
 		self.entities[self.kind] = self
 
+	def place_bomb(self):
+		bomb = Bomb(self.location)
+
 	def frameflip(self):
 		for frame in self.possible_frames:
 			img = ImageTk.getimage(self.frame_dict[frame])
@@ -155,7 +163,7 @@ class Creature():
 			img = Image.open(f"sprites//{self.kind}//{frame}.png") #PIL transposeable image
 			frame_img = ImageTk.PhotoImage(img)
 			self.frame_dict[frame] = frame_img
-		self.current_frame = App.canvas.create_image(20+(40*self.location[1]),40*self.location[0],image=self.frame_dict["stand"])
+		self.current_frame = App.canvas.create_image(20+(40*self.location[0]),40*self.location[1],image=self.frame_dict["stand"])
 
 	def shape_grabber(self):
 		pass
@@ -186,7 +194,6 @@ class Creature():
 
 	def move_tick(self,counter,frame_to_print):
 			if counter == 40:
-				self.location = (self.location[0]+self.dx_dy[0], self.location[1]+self.dx_dy[1])
 				if len(keys_held) == 0:
 					self.moving = False
 					self.place_image("stand")
@@ -197,6 +204,10 @@ class Creature():
 					if keys_held[0] in movement_inputs:
 						self.move(keys_held[0])
 				return
+			
+			if counter == 20: # bomb/enemy collision
+				self.location = (self.location[0]+self.dx_dy[0], self.location[1]+self.dx_dy[1])
+				print(self.location)
 
 			if counter%10 == 0:
 				frame_to_print.append(frame_to_print.pop(0)) # cycles through the frames
@@ -215,29 +226,47 @@ class Creature():
 class Bomb():
 	entities = {}
 
-	def __init__(self):
+	def __init__(self, location):
+		print("HERE")
+		self.location = location
+		self.kind = "bomb"
 		self.possible_frames = ["bomb_1","bomb_2","bomb_3","bomb_4"]
 		self.frame_dict = {}
-		self.time = 100
-		self.worker = threading.Thread(target=self.bomb_loop)
-		self.worker.start()
+		self.time = 200
+		self.shape_assign()
+		self.bomb_handler()
 	
-	def bomb_loop(self):
+	def bomb_handler(self):
+		self.worker = threading.Thread(target=self.bomb_tick)
+		self.worker.start()
+
+	def bomb_tick(self):
 		self.lock = threading.Lock()
-		while self.time != 0:
-			with self.lock:
-				print(self.time)
-				# print bomb on screen
-				if self.time%10 == 0:
-					self.possible_frames.append(self.possible_frames.pop(0))
-				self.time -= 1
-				time.sleep(0.1)
+		with self.lock:
+			self.time -= 1
+			print(self.time)
+			# print bomb on screen
+			if self.time%10 == 0:
+				self.possible_frames.append(self.possible_frames.pop(0))
+			
+			if self.time == 0:
+				#explode
+				return
+			self.place_image(self.possible_frames[0])
+			App.canvas.after(10, self.bomb_handler)
 
 	def shape_assign(self):
 		for frame in self.possible_frames:
 			img = Image.open(f"sprites//{self.kind}//{frame}.png") #PIL transposeable image
 			frame_img = ImageTk.PhotoImage(img)
 			self.frame_dict[frame] = frame_img
+		self.current_frame = App.canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict["bomb_1"])
+	
+	def place_image(self,frame):
+		x, y = App.canvas.coords(self.current_frame)
+		holder = App.canvas.create_image(x,y,image=self.frame_dict[frame])
+		App.canvas.delete(self.current_frame)
+		self.current_frame = holder
 
 class Item():
 	entities = {}
