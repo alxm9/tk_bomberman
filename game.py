@@ -72,7 +72,7 @@ class App():
 		while self.window:
 			with self.lock:
 				time.sleep(0.1)
-				print(keys_held)
+				# print(keys_held)
 				self.input_handler()
 
 	def start_holding(self, event):
@@ -116,7 +116,7 @@ class App():
 				}[row[column_index]]
 				if creature_type == "bomberman": 
 					print(row_index,column_index)
-					self.player = Creature((column_index,row_index),"player")
+					self.player = Creature((row_index,column_index),"player")
 					return
 				else:
 					creature = Creature((row_index,column_index),creature_type)
@@ -169,15 +169,16 @@ class Creature():
 		pass
 		
 	def occupied_check(self,dx_dy):
-		proposed_loc = (self.location[1]+dx_dy[1],self.location[0]+dx_dy[0])
-		return find_by_location(Tile, proposed_loc)
+		proposed_loc = (self.location[0]+dx_dy[0],self.location[1]+dx_dy[1])
+		print(proposed_loc)
+		for obj in [Bomb, Tile]:
+			if find_by_location(obj, proposed_loc):
+				return True
+		return False
 
 	def move(self, direction):
-		# cur_x, cur_y = App.canvas.coords(self.current_frame)
 		dx_dy = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}[direction]
 		if (self.moving == True) or (self.occupied_check(dx_dy)):
-			# if (len(keys_held) > 1) and (self.occupied_check(dx_dy)):
-			# 	keys_held[0], keys_held[1] = keys_held[1], keys_held[0]
 			return # Space occupied
 		self.moving = True
 		self.dx_dy = dx_dy
@@ -227,12 +228,16 @@ class Bomb():
 	entities = {}
 
 	def __init__(self, location):
-		print("HERE")
+		if location in self.entities:
+			del self
+			return
 		self.location = location
+		print(location)
 		self.kind = "bomb"
 		self.possible_frames = ["bomb_1","bomb_2","bomb_3","bomb_4"]
 		self.frame_dict = {}
 		self.time = 200
+		self.entities[location] = self
 		self.shape_assign()
 		self.bomb_handler()
 	
@@ -244,13 +249,12 @@ class Bomb():
 		self.lock = threading.Lock()
 		with self.lock:
 			self.time -= 1
-			print(self.time)
-			# print bomb on screen
 			if self.time%10 == 0:
 				self.possible_frames.append(self.possible_frames.pop(0))
 			
 			if self.time == 0:
-				#explode
+				App.canvas.delete(self.current_frame)
+				del self.entities[self.location], self
 				return
 			self.place_image(self.possible_frames[0])
 			App.canvas.after(10, self.bomb_handler)
@@ -296,7 +300,7 @@ class Tile(): # Cannot pass through tiles
 			frame_img = ImageTk.PhotoImage(img)
 			self.frame_dict[frame] = frame_img
 		row = self.location[1]*40+20
-		self.current_frame = App.canvas.create_image(self.location[1]*40,self.location[0]*40,image=self.frame_dict[self.kind+"_1"], anchor=NW)
+		self.current_frame = App.canvas.create_image(self.location[0]*40,self.location[1]*40,image=self.frame_dict[self.kind+"_1"], anchor=NW)
 		
 	def destroy(self): # If destructible tile, gets destroyed when touched by explosion
 		pass
