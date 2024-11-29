@@ -62,24 +62,30 @@ class App():
 			return
 		if "space" in keys_held:
 			self.player.place_bomb()
-			keys_held.remove("space") if "space" in keys_held else None
-			return
-		if keys_held[0] in movement_inputs:
-			self.player.move(keys_held[0])	
+			# keys_held.remove("space") if "space" in keys_held else None
+			# return
+		# if keys_held[0] in movement_inputs:
+		# 	self.player.move(keys_held[0])	
+		for key in keys_held:
+			if key in movement_inputs:
+				self.player.move(key)
 					
 	def gameloop(self):
 		self.lock = threading.Lock()
 		while self.window:
 			with self.lock:
 				time.sleep(0.1)
-				# print(keys_held)
+				print(keys_held)
 				self.input_handler()
 
 	def start_holding(self, event):
-		if len(keys_held) != 0:
+		if event.keysym == "space":
+			keys_held.append(event.keysym)
+			return
+		if event.keysym in movement_inputs:
 			keys_held.insert(0, event.keysym)
 			return
-		keys_held.append(event.keysym)
+		# keys_held.append(event.keysym)
 
 	def stop_holding(self, event):
 		if len(keys_held) > 1:
@@ -96,7 +102,7 @@ class App():
 			for column in range(15):
 				if (column%2) == 1 and (row%2)==1:
 					self.canvas.create_rectangle((40*row),(40*column),40+(40*row),40+(40*column), fill="#439229", width=0)
-		
+						
 		for row_index, row in enumerate(map_pattern): # Adds tiles
 			for column_index, column in enumerate(row):
 				if row[column_index] not in [1,2]:
@@ -139,6 +145,7 @@ class Creature():
 		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.dx_dy = 0
 		self.kind = "bomberman"
+		self.bomblength = 1 if self.kind == "bomberman" else 0
 		self.speed = 10 # Lower = faster
 		self.passable = True # When running passable check, enemy AI can walk towards you
 		self.destructible = True
@@ -242,22 +249,23 @@ class Bomb():
 		self.bomb_handler()
 	
 	def bomb_handler(self):
-		self.worker = threading.Thread(target=self.bomb_tick)
-		self.worker.start()
+		# self.worker = threading.Thread(target=self.bomb_tick)
+		# self.worker.start()
+		self.bomb_tick()
 
 	def bomb_tick(self):
-		self.lock = threading.Lock()
-		with self.lock:
-			self.time -= 1
-			if self.time%10 == 0:
-				self.possible_frames.append(self.possible_frames.pop(0))
-			
-			if self.time == 0:
-				App.canvas.delete(self.current_frame)
-				del self.entities[self.location], self
-				return
-			self.place_image(self.possible_frames[0])
-			App.canvas.after(10, self.bomb_handler)
+		# self.lock = threading.Lock()
+		# with self.lock:
+		self.time -= 1
+		if self.time%10 == 0:
+			self.possible_frames.append(self.possible_frames.pop(0))
+		
+		if self.time == 0:
+			App.canvas.delete(self.current_frame)
+			del self.entities[self.location], self
+			return
+		self.place_image(self.possible_frames[0])
+		App.canvas.after(10, self.bomb_handler)
 
 	def shape_assign(self):
 		for frame in self.possible_frames:
