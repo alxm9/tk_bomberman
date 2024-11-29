@@ -145,7 +145,7 @@ class Creature():
 		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.dx_dy = 0
 		self.kind = "bomberman"
-		self.bomblength = 1 if self.kind == "bomberman" else 0
+		self.bomblength = 8 if self.kind == "bomberman" else 0
 		self.speed = 10 # Lower = faster
 		self.passable = True # When running passable check, enemy AI can walk towards you
 		self.destructible = True
@@ -156,7 +156,7 @@ class Creature():
 		self.entities[self.kind] = self
 
 	def place_bomb(self):
-		bomb = Bomb(self.location)
+		bomb = Bomb(self.location, self.bomblength)
 
 	def frameflip(self):
 		for frame in self.possible_frames:
@@ -231,16 +231,61 @@ class Creature():
 		App.canvas.delete(self.current_frame)
 		self.current_frame = App.canvas.create_image(x,y,image=self.frame_dict[frame])
 
+class Explosion():
+	entities = {}
+
+	def __init__(self, location, kind, rotation):
+		self.location = location
+		self.kind = kind
+		self.rotation = rotation
+		self.frame_dict = {}
+		self.shape_assign()
+		self.framecounter = 1
+		if self.rotation != 0:
+			self.frameflip(rotation)
+		self.explosion_tick()
+
+	def explosion_tick(self):
+		self.framecounter += 1
+
+		if self.framecounter == 12:
+			App.canvas.delete(self.current_frame)
+			del self
+			return
+
+		self.place_image(self.framecounter)
+		App.canvas.after(30, self.explosion_tick)
+
+	def shape_assign(self):
+		for frame in range(1,12):
+			img = Image.open(f"sprites//explosion//{self.kind}//{frame}.png") #PIL transposeable image
+			frame_img = ImageTk.PhotoImage(img)
+			self.frame_dict[frame] = frame_img
+		self.current_frame = App.canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict[1])
+
+	def frameflip(self, rotation):
+		for frame in range(1,12):
+			img = ImageTk.getimage(self.frame_dict[frame])
+			img = img.rotate(rotation)
+			img = ImageTk.PhotoImage(img)
+			self.frame_dict[frame] = img
+
+	def place_image(self,frame):
+		x, y = App.canvas.coords(self.current_frame)
+		holder = App.canvas.create_image(x,y,image=self.frame_dict[frame])
+		App.canvas.delete(self.current_frame)
+		self.current_frame = holder
+
 class Bomb():
 	entities = {}
 
-	def __init__(self, location):
+	def __init__(self, location, bomblength):
 		if location in self.entities:
 			del self
 			return
 		self.location = location
-		print(location)
 		self.kind = "bomb"
+		self.bomblength = bomblength
 		self.possible_frames = ["bomb_1","bomb_2","bomb_3","bomb_4"]
 		self.frame_dict = {}
 		self.time = 200
@@ -262,10 +307,41 @@ class Bomb():
 		
 		if self.time == 0:
 			App.canvas.delete(self.current_frame)
+			self.explosion()
 			del self.entities[self.location], self
 			return
 		self.place_image(self.possible_frames[0])
 		App.canvas.after(10, self.bomb_handler)
+
+	def explosion(self):
+		origin_distance = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}
+		core = Explosion(self.location, 'core', 0)
+		# for length in range(1,self.bomblength+1):
+		# 	for direction, distance in origin_distance.items():
+		# 		rotation = {"Down": 90, "Up": 90, "Left": 0, "Right": 0}[direction]
+		# 		dx = self.location[0] + distance[0]
+		# 		dy = self.location[1] + distance[1]
+		# 		body = Explosion((dx,dy), 'body', rotation)
+		for length in range(1,self.bomblength+1):
+			# if length == self.bomblength:
+
+			# 	break
+			# for direction, distance in origin_distance.items():
+			# 	rotation = {"Down": 90, "Up": 90, "Left": 0, "Right": 0}[direction]
+			# 	dx = self.location[0] + distance[0]*length
+			# 	dy = self.location[1] + distance[1]*length
+			# 	body = Explosion((dx,dy), 'body', rotation)
+			for direction, distance in origin_distance.items():
+				rotation = {"Down": 90, "Up": 270, "Left": 0, "Right": 180}[direction]
+				dx = self.location[0] + distance[0]*length
+				dy = self.location[1] + distance[1]*length
+				if length == self.bomblength:
+					tip = Explosion((dx,dy),'tip',rotation)
+					continue
+				body = Explosion((dx,dy), 'body', rotation)
+		
+				
+		
 
 	def shape_assign(self):
 		for frame in self.possible_frames:
