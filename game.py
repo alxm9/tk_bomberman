@@ -61,11 +61,7 @@ class App():
 		if len(keys_held) == 0:
 			return
 		if "space" in keys_held:
-			self.player.place_bomb()
-			# keys_held.remove("space") if "space" in keys_held else None
-			# return
-		# if keys_held[0] in movement_inputs:
-		# 	self.player.move(keys_held[0])	
+			self.player.place_bomb()	
 		for key in keys_held:
 			if key in movement_inputs:
 				self.player.move(key)
@@ -85,7 +81,6 @@ class App():
 		if event.keysym in movement_inputs:
 			keys_held.insert(0, event.keysym)
 			return
-		# keys_held.append(event.keysym)
 
 	def stop_holding(self, event):
 		if len(keys_held) > 1:
@@ -145,14 +140,14 @@ class Creature():
 		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.dx_dy = 0
 		self.kind = "bomberman"
-		self.bomblength = 8 if self.kind == "bomberman" else 0
+		self.bomblength = 3 if self.kind == "bomberman" else 0
 		self.speed = 10 # Lower = faster
 		self.passable = True # When running passable check, enemy AI can walk towards you
 		self.destructible = True
 		self.moving = False # can't move if you're already moving
 		self.trajectory = False
 		self.move_queue = []
-		self.shape_assign()
+		shape_assign(self, 'stand', dy=0)
 		self.entities[self.kind] = self
 
 	def place_bomb(self):
@@ -164,13 +159,6 @@ class Creature():
 			img = img.transpose(Image.FLIP_LEFT_RIGHT)
 			img = ImageTk.PhotoImage(img)
 			self.frame_dict[frame] = img
-		
-	def shape_assign(self):
-		for frame in self.possible_frames:
-			img = Image.open(f"sprites//{self.kind}//{frame}.png") #PIL transposeable image
-			frame_img = ImageTk.PhotoImage(img)
-			self.frame_dict[frame] = frame_img
-		self.current_frame = App.canvas.create_image(20+(40*self.location[0]),40*self.location[1],image=self.frame_dict["stand"])
 
 	def shape_grabber(self):
 		pass
@@ -204,10 +192,10 @@ class Creature():
 			if counter == 40:
 				if len(keys_held) == 0:
 					self.moving = False
-					self.place_image("stand")
+					place_image(self,"stand")
 					return
 				else:
-					self.place_image("stand")
+					place_image(self,"stand")
 					self.moving = False
 					if keys_held[0] in movement_inputs:
 						self.move(keys_held[0])
@@ -222,24 +210,20 @@ class Creature():
 
 			counter += 1
 
-			self.place_image(self.possible_frames[frame_to_print[0]])
+			place_image(self,self.possible_frames[frame_to_print[0]])
 			App.canvas.move(self.current_frame, self.dx_dy[0], self.dx_dy[1])
 			App.canvas.after(self.speed, self.move_tick, counter, frame_to_print)
-
-	def place_image(self,frame):
-		x, y = App.canvas.coords(self.current_frame)
-		App.canvas.delete(self.current_frame)
-		self.current_frame = App.canvas.create_image(x,y,image=self.frame_dict[frame])
 
 class Explosion():
 	entities = {}
 
 	def __init__(self, location, kind, rotation):
+		self.possible_frames = range(1,12)
 		self.location = location
 		self.kind = kind
 		self.rotation = rotation
 		self.frame_dict = {}
-		self.shape_assign()
+		shape_assign(self, 1, 'explosion//')
 		self.framecounter = 1
 		if self.rotation != 0:
 			self.frameflip(rotation)
@@ -253,7 +237,7 @@ class Explosion():
 			del self
 			return
 
-		self.place_image(self.framecounter)
+		place_image(self,self.framecounter)
 		App.canvas.after(30, self.explosion_tick)
 
 	def shape_assign(self):
@@ -272,9 +256,8 @@ class Explosion():
 
 	def place_image(self,frame):
 		x, y = App.canvas.coords(self.current_frame)
-		holder = App.canvas.create_image(x,y,image=self.frame_dict[frame])
 		App.canvas.delete(self.current_frame)
-		self.current_frame = holder
+		self.current_frame = App.canvas.create_image(x,y,image=self.frame_dict[frame])
 
 class Bomb():
 	entities = {}
@@ -290,7 +273,7 @@ class Bomb():
 		self.frame_dict = {}
 		self.time = 200
 		self.entities[location] = self
-		self.shape_assign()
+		shape_assign(self,"bomb_1")
 		self.bomb_handler()
 	
 	def bomb_handler(self):
@@ -310,27 +293,15 @@ class Bomb():
 			self.explosion()
 			del self.entities[self.location], self
 			return
-		self.place_image(self.possible_frames[0])
+		place_image(self,self.possible_frames[0])
 		App.canvas.after(10, self.bomb_handler)
 
 	def explosion(self):
 		origin_distance = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}
 		core = Explosion(self.location, 'core', 0)
-		# for length in range(1,self.bomblength+1):
-		# 	for direction, distance in origin_distance.items():
-		# 		rotation = {"Down": 90, "Up": 90, "Left": 0, "Right": 0}[direction]
-		# 		dx = self.location[0] + distance[0]
-		# 		dy = self.location[1] + distance[1]
-		# 		body = Explosion((dx,dy), 'body', rotation)
-		for length in range(1,self.bomblength+1):
-			# if length == self.bomblength:
 
-			# 	break
-			# for direction, distance in origin_distance.items():
-			# 	rotation = {"Down": 90, "Up": 90, "Left": 0, "Right": 0}[direction]
-			# 	dx = self.location[0] + distance[0]*length
-			# 	dy = self.location[1] + distance[1]*length
-			# 	body = Explosion((dx,dy), 'body', rotation)
+		for length in range(1,self.bomblength+1):
+
 			for direction, distance in origin_distance.items():
 				rotation = {"Down": 90, "Up": 270, "Left": 0, "Right": 180}[direction]
 				dx = self.location[0] + distance[0]*length
@@ -339,22 +310,6 @@ class Bomb():
 					tip = Explosion((dx,dy),'tip',rotation)
 					continue
 				body = Explosion((dx,dy), 'body', rotation)
-		
-				
-		
-
-	def shape_assign(self):
-		for frame in self.possible_frames:
-			img = Image.open(f"sprites//{self.kind}//{frame}.png") #PIL transposeable image
-			frame_img = ImageTk.PhotoImage(img)
-			self.frame_dict[frame] = frame_img
-		self.current_frame = App.canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict["bomb_1"])
-	
-	def place_image(self,frame):
-		x, y = App.canvas.coords(self.current_frame)
-		holder = App.canvas.create_image(x,y,image=self.frame_dict[frame])
-		App.canvas.delete(self.current_frame)
-		self.current_frame = holder
 
 class Item():
 	entities = {}
@@ -369,33 +324,31 @@ class Tile(): # Cannot pass through tiles
 	def __init__(self, location, destructible, kind):
 		self.location = location
 		self.frame_dict = {} # "tile":photoimage location
-		self.possible_frames = ["strongwall_1"]
 		self.kind = kind
+		self.possible_frames = ["strongwall_1"] if self.kind == 'strongwall' else ['wall_1']
 		self.destructible = destructible
 		self.shape = False
-		self.shape_assign()
+		shape_assign(self,self.kind+"_1", 'tiles//')
 		self.entities[location] = self
-
-	def shape_assign(self):
-		if self.kind == "wall":
-			self.possible_frames = ["wall_1"]
-		for frame in self.possible_frames:
-			img = Image.open(f"sprites//tiles//{frame}.png") #PIL transposeable image
-			frame_img = ImageTk.PhotoImage(img)
-			self.frame_dict[frame] = frame_img
-		row = self.location[1]*40+20
-		self.current_frame = App.canvas.create_image(self.location[0]*40,self.location[1]*40,image=self.frame_dict[self.kind+"_1"], anchor=NW)
 		
 	def destroy(self): # If destructible tile, gets destroyed when touched by explosion
 		pass
-		# Play destruction animation
-		# Canvas delete
-		# Random chance to place item at self.position
-		# Delete self
 
 	def assign_item(self):
 		pass
 		# Random chance to assign an item upon
+
+def shape_assign(object, firstframe, path='', dx=20, dy=20):
+	for frame in object.possible_frames:
+		img = Image.open(f"sprites//{path}{object.kind}//{frame}.png") #PIL transposeable image
+		frame_img = ImageTk.PhotoImage(img)
+		object.frame_dict[frame] = frame_img
+	object.current_frame = App.canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[firstframe])
+
+def place_image(object,frame):
+	x, y = App.canvas.coords(object.current_frame)
+	App.canvas.delete(object.current_frame)
+	object.current_frame = App.canvas.create_image(x,y,image=object.frame_dict[frame])
 
 def find_by_location(object, location):
 	return location in object.entities
