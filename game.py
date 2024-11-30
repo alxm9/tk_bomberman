@@ -197,8 +197,12 @@ class Creature():
 						self.move(keys_held[0])
 				return
 			
-			if counter == 20: # bomb/enemy collision
+			if counter == 20: # entity collision
 				self.location = (self.location[0]+self.dx_dy[0], self.location[1]+self.dx_dy[1])
+				item = grab_object(Item,self.location)
+				if item:
+					item.destroy()
+
 				print(self.location)
 
 			if counter%10 == 0:
@@ -305,15 +309,24 @@ class Bomb():
 				dy = self.location[1] + distance[1]*length
 				rotation = {"Down": 90, "Up": 270, "Left": 0, "Right": 180}[direction]
 
-				for object in [Tile, Bomb]:
+				for object in [Tile, Bomb, Item]:
 					if find_by_location(object,(dx,dy)):
 						obj_met[direction] = True
 						instance = grab_object(object,(dx,dy))
-						match instance.kind:
-							case 'wall':
+						if instance.kind == 'wall':
+							item = Item(instance.location) if (random.random() > 0.5) else None
+							if item != None:
+								newitem = True
+							instance.destroy()
+						elif instance.kind == 'bomb':
+							instance.time = 0
+						elif isinstance(instance, Item):
+							try:
+								newitem
+							except:
 								instance.destroy()
-							case 'bomb':
-								instance.time = 0
+							else:
+								print("here")
 
 						found = True
 				
@@ -330,9 +343,44 @@ class Bomb():
 class Item():
 	entities = {}
 
-	def __init__(self):
+	def __init__(self,location):
+		self.location = location
+		self.frame_dict = {}
+		self.possible_frames = [1,2,3,4]
+		self.kind = random.choice(['up_speed', 'up_bomb', 'up_explosion'])
 		self.passable = True
-		self.destructible = True
+		self.taken = False
+		self.entities[str(location)] = self
+		shape_assign(self,1,"powerup//")
+		self.item_tick()
+	
+	def item_tick(self):
+		if self.taken == False:
+			self.possible_frames.append(self.possible_frames.pop(0))
+			place_image(self,self.possible_frames[0])
+			App.canvas.after(40, self.item_tick)
+	
+	def destroy(self):
+		self.taken = True
+		App.canvas.delete(self.current_frame)
+
+		self.frame_dict = {}
+		self.kind = 'general_blowup'
+		self.possible_frames = [1,2,3,4,5]
+		shape_assign(self,1)
+
+		self.frame = 0
+		self.destroy_tick()
+	
+	def destroy_tick(self):
+		self.frame += 1
+		place_image(self,self.possible_frames[0])
+		if self.frame == self.possible_frames[1]+1:
+			del self.entities[str(self.location)], self
+			return
+		else:
+			App.canvas.after(40, self.destroy_tick)
+
 
 class Tile(): # Cannot pass through tiles
 	entities = {}
@@ -383,6 +431,7 @@ def find_by_location(object, location):
 def grab_object(object,location):
 	if str(location) in object.entities:
 		return object.entities[str(location)]
+	return False
 	
 app = App()
 
