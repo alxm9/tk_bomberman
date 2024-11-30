@@ -140,7 +140,7 @@ class Creature():
 		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.dx_dy = 0
 		self.kind = "bomberman"
-		self.bomblength = 3 if self.kind == "bomberman" else 0
+		self.bomblength = 1 if self.kind == "bomberman" else 0
 		self.speed = 10 # Lower = faster
 		self.passable = True # When running passable check, enemy AI can walk towards you
 		self.destructible = True
@@ -159,13 +159,9 @@ class Creature():
 			img = img.transpose(Image.FLIP_LEFT_RIGHT)
 			img = ImageTk.PhotoImage(img)
 			self.frame_dict[frame] = img
-
-	def shape_grabber(self):
-		pass
 		
 	def occupied_check(self,dx_dy):
 		proposed_loc = (self.location[0]+dx_dy[0],self.location[1]+dx_dy[1])
-		print(proposed_loc)
 		for obj in [Bomb, Tile]:
 			if find_by_location(obj, proposed_loc):
 				return True
@@ -263,7 +259,7 @@ class Bomb():
 	entities = {}
 
 	def __init__(self, location, bomblength):
-		if location in self.entities:
+		if str(location) in self.entities:
 			del self
 			return
 		self.location = location
@@ -272,7 +268,7 @@ class Bomb():
 		self.possible_frames = ["bomb_1","bomb_2","bomb_3","bomb_4"]
 		self.frame_dict = {}
 		self.time = 200
-		self.entities[location] = self
+		self.entities[str(location)] = self
 		shape_assign(self,"bomb_1")
 		self.bomb_handler()
 	
@@ -288,28 +284,48 @@ class Bomb():
 		if self.time%10 == 0:
 			self.possible_frames.append(self.possible_frames.pop(0))
 		
-		if self.time == 0:
+		if self.time <= 0:
 			App.canvas.delete(self.current_frame)
-			self.explosion()
-			del self.entities[self.location], self
+			self.destroy()
 			return
 		place_image(self,self.possible_frames[0])
 		App.canvas.after(10, self.bomb_handler)
 
-	def explosion(self):
+	def destroy(self):
 		origin_distance = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}
+		obj_met = {"Down":False, "Up":False, "Left":False, "Right":False}
 		core = Explosion(self.location, 'core', 0)
-
 		for length in range(1,self.bomblength+1):
 
 			for direction, distance in origin_distance.items():
-				rotation = {"Down": 90, "Up": 270, "Left": 0, "Right": 180}[direction]
+				found = False
+				if obj_met[direction] == True:
+					continue
 				dx = self.location[0] + distance[0]*length
 				dy = self.location[1] + distance[1]*length
+				rotation = {"Down": 90, "Up": 270, "Left": 0, "Right": 180}[direction]
+
+				for object in [Tile, Bomb]:
+					if find_by_location(object,(dx,dy)):
+						obj_met[direction] = True
+						instance = grab_object(object,(dx,dy))
+						match instance.kind:
+							case 'wall':
+								instance.destroy()
+							case 'bomb':
+								instance.time = 0
+
+						found = True
+				
+				if found:
+					continue
+
 				if length == self.bomblength:
 					tip = Explosion((dx,dy),'tip',rotation)
 					continue
 				body = Explosion((dx,dy), 'body', rotation)
+
+		del self.entities[str(self.location)], self
 
 class Item():
 	entities = {}
@@ -325,14 +341,25 @@ class Tile(): # Cannot pass through tiles
 		self.location = location
 		self.frame_dict = {} # "tile":photoimage location
 		self.kind = kind
-		self.possible_frames = ["strongwall_1"] if self.kind == 'strongwall' else ['wall_1']
+		self.possible_frames = ["strongwall_1"] if self.kind == 'strongwall' else [f'wall_{num}' for num in range(1,10)]
 		self.destructible = destructible
-		self.shape = False
+		self.framecounter = 1 
 		shape_assign(self,self.kind+"_1", 'tiles//')
-		self.entities[location] = self
+		self.entities[str(location)] = self
 		
 	def destroy(self): # If destructible tile, gets destroyed when touched by explosion
-		pass
+		self.tile_tick()
+
+	def tile_tick(self):
+		self.framecounter += 1
+
+		if self.framecounter == 10:
+			App.canvas.delete(self.current_frame)
+			del self.entities[str(self.location)], self
+			return
+
+		place_image(self,f'wall_{self.framecounter}')
+		App.canvas.after(15, self.tile_tick)
 
 	def assign_item(self):
 		pass
@@ -351,7 +378,11 @@ def place_image(object,frame):
 	object.current_frame = App.canvas.create_image(x,y,image=object.frame_dict[frame])
 
 def find_by_location(object, location):
-	return location in object.entities
+	return str(location) in object.entities
+
+def grab_object(object,location):
+	if str(location) in object.entities:
+		return object.entities[str(location)]
 	
 app = App()
 
