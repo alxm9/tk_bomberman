@@ -140,7 +140,7 @@ class Creature():
 		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.dx_dy = 0
 		self.kind = "bomberman"
-		self.bomblength = 1 if self.kind == "bomberman" else 0
+		self.bomblength = 5 if self.kind == "bomberman" else 0
 		self.speed = 10 # Lower = faster
 		self.passable = True # When running passable check, enemy AI can walk towards you
 		self.destructible = True
@@ -201,6 +201,13 @@ class Creature():
 				self.location = (self.location[0]+self.dx_dy[0], self.location[1]+self.dx_dy[1])
 				item = grab_object(Item,self.location)
 				if item:
+					match item.kind:
+						case 'up_speed':
+							self.speed -= 1
+						case 'up_bomb':
+							pass
+						case 'up_explosion':
+							self.bomblength += 1
 					item.destroy()
 
 				print(self.location)
