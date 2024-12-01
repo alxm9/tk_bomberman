@@ -1,7 +1,5 @@
 from tkinter import *
-import threading
 import random
-import time
 import os
 import platform
 
@@ -51,8 +49,7 @@ class App():
 		self.interface.bind("<Escape>", lambda event: self.interface.destroy())
 		self.key_held = ""
 		self.keys_pressed = [] # keys currently being pressed
-		self.worker = threading.Thread(target=self.gameloop)
-		self.worker.start()
+		self.gameloop()
 		self.interface.mainloop()
 
 	def platform_handler(self):
@@ -72,12 +69,8 @@ class App():
 				self.player.move(key)
 					
 	def gameloop(self):
-		self.lock = threading.Lock()
-		while self.window:
-			with self.lock:
-				time.sleep(0.1)
-				print(keys_held)
-				self.input_handler()
+		self.input_handler()
+		self.interface.after(10, self.gameloop)
 
 	def start_holding(self, event):
 		if event.keysym == "space":
@@ -295,13 +288,9 @@ class Bomb():
 		self.bomb_handler()
 	
 	def bomb_handler(self):
-		# self.worker = threading.Thread(target=self.bomb_tick)
-		# self.worker.start()
 		self.bomb_tick()
 
 	def bomb_tick(self):
-		# self.lock = threading.Lock()
-		# with self.lock:
 		self.time -= 1
 		if self.time%10 == 0:
 			self.possible_frames.append(self.possible_frames.pop(0))
