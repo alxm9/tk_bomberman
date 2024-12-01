@@ -43,13 +43,17 @@ class App():
 		self.populate_tiles()
 		self.populate_creatures()
 		# self.interface.bind("<x>", lambda event: self.debug_destroy_random())
-		self.interface.bind("<KeyPress>", lambda event: self.start_holding(event))
-		self.interface.bind("<KeyRelease>", lambda event: self.stop_holding(event))
+		# self.interface.bind("<KeyPress>", lambda event: self.start_holding(event))
+		# self.interface.bind("<KeyRelease>", lambda event: self.stop_holding(event))
+		self.interface.bind("<Left>", lambda event: self.player.move("Left"))
+		self.interface.bind("<Right>", lambda event: self.player.move("Right"))
+		self.interface.bind("<Up>", lambda event: self.player.move("Up"))
+		self.interface.bind("<Down>", lambda event: self.player.move("Down"))
 		self.interface.bind("<Destroy>", lambda event: self.closegame())
 		self.interface.bind("<Escape>", lambda event: self.interface.destroy())
 		self.key_held = ""
 		self.keys_pressed = [] # keys currently being pressed
-		self.gameloop()
+		# self.gameloop()
 		self.interface.mainloop()
 
 	def platform_handler(self):
