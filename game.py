@@ -7,9 +7,6 @@ import platform
 
 from PIL import Image, ImageTk
 
-if platform.system() == "Linux": # Linux handles keys differently
-	os.system("xset r off")
-
 map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible, 3-Bomberman
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 	[1,0,0,3,0,0,0,0,0,2,0,0,0,0,1],
@@ -43,6 +40,7 @@ class App():
 	tile_sqpixels = 40
 	
 	def __init__(self):
+		self.platform_handler()
 		self.window = True
 		self.populate_tiles()
 		self.populate_creatures()
@@ -57,7 +55,14 @@ class App():
 		self.worker.start()
 		self.interface.mainloop()
 
-	def input_handler(self):
+	def platform_handler(self):
+		if platform.system() == "Linux": # Linux handles keys differently
+			os.system("xset r off")
+			self.input_handler = self.linux_input_handler
+		if platform.system() == "Windows":
+			self.input_handler = self.linux_input_handler # placeholder
+		
+	def linux_input_handler(self):
 		if len(keys_held) == 0:
 			return
 		if "space" in keys_held:
@@ -235,6 +240,9 @@ class Explosion():
 		if self.rotation != 0:
 			self.frameflip(rotation)
 		self.explosion_tick()
+		if self.kind == 'core':
+			self.entities[str(location)] = self
+			App.interface.after(50, self.destroy)
 
 	def explosion_tick(self):
 		self.framecounter += 1
@@ -246,6 +254,9 @@ class Explosion():
 
 		place_image(self,self.framecounter)
 		App.canvas.after(30, self.explosion_tick)
+	
+	def destroy(self):
+		del self.entities[str(self.location)], self
 
 	def shape_assign(self):
 		for frame in range(1,12):
@@ -316,7 +327,7 @@ class Bomb():
 				dy = self.location[1] + distance[1]*length
 				rotation = {"Down": 90, "Up": 270, "Left": 0, "Right": 180}[direction]
 
-				for object in [Tile, Bomb, Item]:
+				for object in [Tile, Bomb, Item, Explosion]:
 					if find_by_location(object,(dx,dy)):
 						obj_met[direction] = True
 						instance = grab_object(object,(dx,dy))
