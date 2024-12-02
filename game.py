@@ -57,6 +57,8 @@ class App():
 			os.system("xset r off")
 			self.input_handler = self.linux_input_handler
 		if platform.system() == "Windows":
+			import ctypes
+			ctypes.windll.winmm.timeBeginPeriod(1) # fixes lag on windows
 			self.input_handler = self.linux_input_handler # placeholder
 		
 	def linux_input_handler(self):
@@ -73,6 +75,8 @@ class App():
 		self.interface.after(10, self.gameloop)
 
 	def start_holding(self, event):
+		if event.keysym in keys_held:
+			return
 		if event.keysym == "space":
 			keys_held.append(event.keysym)
 			return
@@ -294,12 +298,12 @@ class Bomb():
 		self.time -= 1
 		if self.time%10 == 0:
 			self.possible_frames.append(self.possible_frames.pop(0))
+			place_image(self,self.possible_frames[0])
 		
 		if self.time <= 0:
 			App.canvas.delete(self.current_frame)
 			self.destroy()
 			return
-		place_image(self,self.possible_frames[0])
 		App.canvas.after(10, self.bomb_handler)
 
 	def destroy(self):
