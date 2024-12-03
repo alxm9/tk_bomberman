@@ -149,6 +149,9 @@ class Creature():
 		shape_assign(self, 'stand', dy=0)
 		self.entities[self.kind] = self
 
+	def kill(self):
+		canvas.delete(self.current_frame)
+		
 	def place_bomb(self):
 		bomb = Bomb(self.location, self.bomblength)
 
@@ -310,7 +313,6 @@ class Bomb():
 		for length in range(1,self.bomblength+1):
 
 			for direction, distance in origin_distance.items():
-				found = False
 				if obj_met[direction] == True:
 					continue
 				dx = self.location[0] + distance[0]*length
@@ -318,27 +320,20 @@ class Bomb():
 				rotation = {"Down": 90, "Up": 270, "Left": 0, "Right": 180}[direction]
 
 				for object in [Tile, Bomb, Item, Explosion]:
-					if find_by_location(object,(dx,dy)):
+					instance = grab_object(object,(dx,dy))
+					if instance:
 						obj_met[direction] = True
-						instance = grab_object(object,(dx,dy))
-						if instance.kind == 'wall':
-							item = Item(instance.location) if (random.random() > 0.5) else None
-							if item != None:
-								newitem = True
-							instance.destroy()
-						elif instance.kind == 'bomb':
+					else:
+						continue
+					match instance:
+						case Bomb():
 							instance.time = 0
-						elif isinstance(instance, Item):
-							try:
-								newitem
-							except:
-								instance.destroy()
-							else:
-								print("here")
-
-						found = True
+						case Item():
+							instance.destroy()
+						case Tile(kind='wall'):
+							instance.destroy()
 				
-				if found:
+				if obj_met[direction]:
 					continue
 
 				if length == self.bomblength:
@@ -367,7 +362,7 @@ class Item():
 			self.possible_frames.append(self.possible_frames.pop(0))
 			place_image(self,self.possible_frames[0])
 			canvas.after(40, self.item_tick)
-	
+
 	def destroy(self):
 		self.taken = True
 		canvas.delete(self.current_frame)
@@ -406,11 +401,15 @@ class Tile(): # Cannot pass through tiles
 	def destroy(self): # If destructible tile, gets destroyed when touched by explosion
 		self.tile_tick()
 
+	def drop_item(self):
+		Item(self.location) if (random.random() > 0.5) else None
+
 	def tile_tick(self):
 		self.framecounter += 1
 
 		if self.framecounter == 10:
 			canvas.delete(self.current_frame)
+			self.drop_item()
 			del self.entities[str(self.location)], self
 			return
 

@@ -82,8 +82,12 @@ def create_menu(menu):
         case "mainmenu":
             newmenu = Window("mainmenu","fullscreen")
             newmenu.create_button("Singleplayer",xcord = 250,ycord = 150, method='start_singleplayer')
-            newmenu.create_button("Multiplayer",xcord = 250,ycord = 225, method='exit')
+            newmenu.create_button("Multiplayer",xcord = 250,ycord = 225, method='target_mpmenu')
             newmenu.create_button("Exit",xcord = 250,ycord = 300, method='exit')
+        case 'mpmenu':
+            newmenu = Window('mpmenu','fullscreen')
+            newmenu.create_button('Host',xcord = 250,ycord = 150, method='exit')
+            newmenu.create_button("Join",xcord = 250,ycord = 225, method='exit')
         case "pausemenu":
             newmenu = Window("pausemenu","overlay")
             newmenu.create_button("Exit",xcord = 250,ycord = 200, method='exit')
