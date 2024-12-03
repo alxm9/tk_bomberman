@@ -20,9 +20,9 @@ class Window():
 
         if self.name == "mainmenu":
             img = Image.open(f"sprites//tkbombermanlogo.png") #PIL transposeable image
-            img = ImageTk.PhotoImage(img)
-            canvas.create_image(222, 222,image=img)
-            # self.graphics.append(logo)
+            self.logo = ImageTk.PhotoImage(img)
+            canvas.create_image(300, 100,image=self.logo)
+            # self.graphics.append(logo
 
 
     def create_button(self, name, xcord = 0, ycord = 0, method = False, width = 100, height = 50):
@@ -72,10 +72,10 @@ class Button():
         }[method]
     
     def OnHover(self, event):
-        pass
+        canvas.itemconfig(self.graphics[0], fill='red')
     
     def UnHover(self, event):
-        pass
+        canvas.itemconfig(self.graphics[0], fill='grey')
 
 def create_menu(menu):
     match menu:
