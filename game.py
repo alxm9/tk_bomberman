@@ -1,7 +1,9 @@
 from tkinter import *
+import time
 import random
 import os
 import platform
+import tkinter_windows as tkwin
 
 from PIL import Image, ImageTk
 
@@ -23,34 +25,38 @@ map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible, 3-Bomberman
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ]
 
+interface = Tk()
+width = 600
+height = 600
+interface.geometry(f"{height}x{width}")
+canvas = Canvas(interface, bg = "green", width = 600, height = 600)
+canvas.pack()
+tile_sqpixels = 40
+tkwin.width = width
+tkwin.height = height
+tkwin.canvas = canvas
+
 keys_held = []
 
 movement_inputs = ["Up", "Down", "Left", "Right"]
 
 class App():
-	# graphics = {} # Don't'. Find another way
-	interface = Tk()
-	width = 600
-	height = 600
-	interface.geometry("600x600")
-	canvas = Canvas(interface, bg = "green", width = 600, height = 600)
-	canvas.pack()
-	tile_sqpixels = 40
 	
 	def __init__(self):
+		tkwin.App = self
 		self.platform_handler()
-		self.window = True
-		self.populate_tiles()
-		self.populate_creatures()
-		# self.interface.bind("<x>", lambda event: self.debug_destroy_random())
-		self.interface.bind("<KeyPress>", lambda event: self.start_holding(event))
-		self.interface.bind("<KeyRelease>", lambda event: self.stop_holding(event))
-		self.interface.bind("<Destroy>", lambda event: self.closegame())
-		self.interface.bind("<Escape>", lambda event: self.interface.destroy())
+		interface.bind("<KeyPress>", lambda event: self.start_holding(event))
+		interface.bind("<KeyRelease>", lambda event: self.stop_holding(event))
+		interface.bind("<Escape>", lambda event: interface.destroy())
 		self.key_held = ""
 		self.keys_pressed = [] # keys currently being pressed
+		tkwin.mainmenu = tkwin.create_menu('mainmenu')
+		interface.mainloop()
+	
+	def start_single_player(self):
 		self.gameloop()
-		self.interface.mainloop()
+		self.populate_tiles()
+		self.populate_creatures()
 
 	def platform_handler(self):
 		if platform.system() == "Linux": # Linux handles keys differently
@@ -58,7 +64,7 @@ class App():
 			self.input_handler = self.linux_input_handler
 		if platform.system() == "Windows":
 			import ctypes
-			ctypes.windll.winmm.timeBeginPeriod(1) # fixes lag on windows
+			ctypes.windll.winmm.timeBeginPeriod(1) # fixes lag on windows, granularity related
 			self.input_handler = self.linux_input_handler # placeholder
 		
 	def linux_input_handler(self):
@@ -72,7 +78,7 @@ class App():
 					
 	def gameloop(self):
 		self.input_handler()
-		self.interface.after(10, self.gameloop)
+		interface.after(10, self.gameloop)
 
 	def start_holding(self, event):
 		if event.keysym in keys_held:
@@ -88,17 +94,15 @@ class App():
 		if len(keys_held) > 1:
 			keys_held[0], keys_held[1] = keys_held[1], keys_held[0]
 		keys_held.remove(event.keysym) if event.keysym in keys_held else None
-		
-	def closegame(self):
-		self.window = False
 
 	def populate_tiles(self): # Draws map based on map_pattern
 		wall_list = ["wall","strongwall"]
 		
+		canvas.create_rectangle(0,0,height, width, fill='green', width=0)
 		for row in range(15): # Adds some variety to the floor
 			for column in range(15):
 				if (column%2) == 1 and (row%2)==1:
-					self.canvas.create_rectangle((40*row),(40*column),40+(40*row),40+(40*column), fill="#439229", width=0)
+					canvas.create_rectangle((40*row),(40*column),40+(40*row),40+(40*column), fill="#439229", width=0)
 						
 		for row_index, row in enumerate(map_pattern): # Adds tiles
 			for column_index, column in enumerate(row):
@@ -123,13 +127,6 @@ class App():
 					return
 				else:
 					creature = Creature((row_index,column_index),creature_type)
-
-	def debug_destroy_random(self):
-		key = random.choice(list(Tile.entities))
-		if Tile.entities[key].destructible == True:
-			self.canvas.delete(Tile.entities[key].shape)
-			print("deleted")
-			del Tile.entities[key]
 			
 class Creature():
 	entities = {}
@@ -220,8 +217,8 @@ class Creature():
 
 			counter += 1
 
-			App.canvas.move(self.current_frame, self.dx_dy[0], self.dx_dy[1])
-			App.canvas.after(self.speed, self.move_tick, counter, frame_to_print)
+			canvas.move(self.current_frame, self.dx_dy[0], self.dx_dy[1])
+			canvas.after(self.speed, self.move_tick, counter, frame_to_print)
 
 class Explosion():
 	entities = {}
@@ -239,18 +236,18 @@ class Explosion():
 		self.explosion_tick()
 		if self.kind == 'core':
 			self.entities[str(location)] = self
-			App.interface.after(50, self.destroy)
+			interface.after(50, self.destroy)
 
 	def explosion_tick(self):
 		self.framecounter += 1
 
 		if self.framecounter == 12:
-			App.canvas.delete(self.current_frame)
+			canvas.delete(self.current_frame)
 			del self
 			return
 
 		place_image(self,self.framecounter)
-		App.canvas.after(30, self.explosion_tick)
+		canvas.after(30, self.explosion_tick)
 	
 	def destroy(self):
 		del self.entities[str(self.location)], self
@@ -260,7 +257,7 @@ class Explosion():
 			img = Image.open(f"sprites//explosion//{self.kind}//{frame}.png") #PIL transposeable image
 			frame_img = ImageTk.PhotoImage(img)
 			self.frame_dict[frame] = frame_img
-		self.current_frame = App.canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict[1])
+		self.current_frame = canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict[1])
 
 	def frameflip(self, rotation):
 		for frame in range(1,12):
@@ -270,9 +267,9 @@ class Explosion():
 			self.frame_dict[frame] = img
 
 	def place_image(self,frame):
-		x, y = App.canvas.coords(self.current_frame)
-		App.canvas.delete(self.current_frame)
-		self.current_frame = App.canvas.create_image(x,y,image=self.frame_dict[frame])
+		x, y = canvas.coords(self.current_frame)
+		canvas.delete(self.current_frame)
+		self.current_frame = canvas.create_image(x,y,image=self.frame_dict[frame])
 
 class Bomb():
 	entities = {}
@@ -301,10 +298,10 @@ class Bomb():
 			place_image(self,self.possible_frames[0])
 		
 		if self.time <= 0:
-			App.canvas.delete(self.current_frame)
+			canvas.delete(self.current_frame)
 			self.destroy()
 			return
-		App.canvas.after(10, self.bomb_handler)
+		canvas.after(10, self.bomb_handler)
 
 	def destroy(self):
 		origin_distance = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}
@@ -369,11 +366,11 @@ class Item():
 		if self.taken == False:
 			self.possible_frames.append(self.possible_frames.pop(0))
 			place_image(self,self.possible_frames[0])
-			App.canvas.after(40, self.item_tick)
+			canvas.after(40, self.item_tick)
 	
 	def destroy(self):
 		self.taken = True
-		App.canvas.delete(self.current_frame)
+		canvas.delete(self.current_frame)
 
 		self.frame_dict = {}
 		self.kind = 'general_blowup'
@@ -390,7 +387,7 @@ class Item():
 			del self.entities[str(self.location)], self
 			return
 		else:
-			App.canvas.after(40, self.destroy_tick)
+			canvas.after(40, self.destroy_tick)
 
 
 class Tile(): # Cannot pass through tiles
@@ -413,12 +410,12 @@ class Tile(): # Cannot pass through tiles
 		self.framecounter += 1
 
 		if self.framecounter == 10:
-			App.canvas.delete(self.current_frame)
+			canvas.delete(self.current_frame)
 			del self.entities[str(self.location)], self
 			return
 
 		place_image(self,f'wall_{self.framecounter}')
-		App.canvas.after(15, self.tile_tick)
+		canvas.after(15, self.tile_tick)
 
 	def assign_item(self):
 		pass
@@ -429,12 +426,12 @@ def shape_assign(object, firstframe, path='', dx=20, dy=20):
 		img = Image.open(f"sprites//{path}{object.kind}//{frame}.png") #PIL transposeable image
 		frame_img = ImageTk.PhotoImage(img)
 		object.frame_dict[frame] = frame_img
-	object.current_frame = App.canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[firstframe])
+	object.current_frame = canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[firstframe])
 
 def place_image(object,frame):
-	x, y = App.canvas.coords(object.current_frame)
-	App.canvas.delete(object.current_frame)
-	object.current_frame = App.canvas.create_image(x,y,image=object.frame_dict[frame])
+	x, y = canvas.coords(object.current_frame)
+	canvas.delete(object.current_frame)
+	object.current_frame = canvas.create_image(x,y,image=object.frame_dict[frame])
 
 def find_by_location(object, location):
 	return str(location) in object.entities
@@ -443,8 +440,12 @@ def grab_object(object,location):
 	if str(location) in object.entities:
 		return object.entities[str(location)]
 	return False
-	
-app = App()
 
-if platform.system() == "Linux":
-	os.system("xset r on")
+def close_handler():
+	if platform.system() == "Linux":
+		os.system("xset r on")
+	if platform.system() == "Windows":
+		ctypes.windll.winmm.timeBeginPeriod(1) # fixes lag on windows
+		
+app = App()
+close_handler()
