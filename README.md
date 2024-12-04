@@ -4,5 +4,5 @@
 
 An implementation of Bomberman using python's Tkinter module.
 
-Arrow keys - Move
+Arrow keys - Move<br>
 Space - Place bomb
