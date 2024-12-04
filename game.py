@@ -4,6 +4,7 @@ import random
 import os
 import platform
 import tkinter_windows as tkwin
+import copy
 
 from PIL import Image, ImageTk
 
@@ -25,6 +26,12 @@ map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible, 3-Bomberman
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ]
 
+keys_held = []
+
+movement_inputs = ["Up", "Down", "Left", "Right"]
+
+explosion_sprites = []
+
 interface = Tk()
 width = 600
 height = 600
@@ -35,10 +42,6 @@ tile_sqpixels = 40
 tkwin.width = width
 tkwin.height = height
 tkwin.canvas = canvas
-
-keys_held = []
-
-movement_inputs = ["Up", "Down", "Left", "Right"]
 
 class App():
 	
@@ -231,8 +234,13 @@ class Explosion():
 		self.location = location
 		self.kind = kind
 		self.rotation = rotation
-		self.frame_dict = {}
-		shape_assign(self, 1, 'explosion//')
+		self.frame_dict = {
+			'core': explo_core_dict,
+			'body': explo_body_dict,
+			'tip': explo_tip_dict
+		}[self.kind]
+		self.frame_dict = copy.copy(self.frame_dict)
+		self.current_frame = canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict[1])
 		self.framecounter = 1
 		if self.rotation != 0:
 			self.frameflip(rotation)
@@ -254,13 +262,6 @@ class Explosion():
 	
 	def destroy(self):
 		del self.entities[str(self.location)], self
-
-	def shape_assign(self):
-		for frame in range(1,12):
-			img = Image.open(f"sprites//explosion//{self.kind}//{frame}.png") #PIL transposeable image
-			frame_img = ImageTk.PhotoImage(img)
-			self.frame_dict[frame] = frame_img
-		self.current_frame = canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict[1])
 
 	def frameflip(self, rotation):
 		for frame in range(1,12):
@@ -420,7 +421,22 @@ class Tile(): # Cannot pass through tiles
 		pass
 		# Random chance to assign an item upon
 
-def shape_assign(object, firstframe, path='', dx=20, dy=20):
+def shape_assign(object = None, 
+				 firstframe = None, 
+				 path='', 
+				 dx=20, dy=20, 
+				 dictmode = False, 
+				 possible_frames = False):
+
+	if dictmode: # Adds frames to a dictionary unrelated to any object
+		frame_dict  = {}
+		for frame in possible_frames:
+			img = Image.open(f"sprites//{path}//{frame}.png") #PIL transposeable image
+			frame_img = ImageTk.PhotoImage(img)
+			frame_dict[frame] = frame_img
+		return frame_dict
+
+	# Adds frames to the dictionary of the respective object
 	for frame in object.possible_frames:
 		img = Image.open(f"sprites//{path}{object.kind}//{frame}.png") #PIL transposeable image
 		frame_img = ImageTk.PhotoImage(img)
@@ -444,7 +460,12 @@ def close_handler():
 	if platform.system() == "Linux":
 		os.system("xset r on")
 	if platform.system() == "Windows":
-		ctypes.windll.winmm.timeBeginPeriod(1) # fixes lag on windows
+		ctypes.windll.winmm.timeEndPeriod(1)
+
+# Preloading explosion sprites
+explo_core_dict = shape_assign(path='explosion//core', dictmode = True, possible_frames = [num for num in range(1,12)])
+explo_body_dict = shape_assign(path='explosion//body', dictmode = True, possible_frames = [num for num in range(1,12)])
+explo_tip_dict = shape_assign(path='explosion//tip', dictmode = True, possible_frames = [num for num in range(1,12)])
 		
 app = App()
 close_handler()
