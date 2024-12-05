@@ -41,6 +41,7 @@ canvas.pack()
 tile_sqpixels = 40
 tkwin.width = width
 tkwin.height = height
+tkwin.interface = interface
 tkwin.canvas = canvas
 
 class App():
@@ -138,17 +139,25 @@ class Creature():
 		self.location = location
 		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_7"] # Used to import the frames
 		self.frame_dict = {} # "stand":photoimage location
+		self.explosion_dict = { # preloading explosions in memory
+			'core_0': {},
+			'body_0': {}, # Horizontal
+			'body_90': {}, # Vertical
+			'tip_0': {}, # Left
+			'tip_90': {}, # Up
+			'tip_180': {}, # Right
+			'tip_270': {}, # Down
+		} # preloaded explosions
+		preload_explosions(self)
+
 		self.current_frame = False
+		self.color = 'blue'
 		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.dx_dy = 0
 		self.kind = "bomberman"
 		self.bomblength = 5 if self.kind == "bomberman" else 0
 		self.speed = 10 # Lower = faster
-		self.passable = True # When running passable check, enemy AI can walk towards you
-		self.destructible = True
 		self.moving = False # can't move if you're already moving
-		self.trajectory = False
-		self.move_queue = []
 		shape_assign(self, 'stand', dy=0)
 		self.entities[self.kind] = self
 
@@ -156,7 +165,7 @@ class Creature():
 		canvas.delete(self.current_frame)
 		
 	def place_bomb(self):
-		bomb = Bomb(self.location, self.bomblength)
+		bomb = Bomb(self.location, self.bomblength, self.explosion_dict)
 
 	def frameflip(self):
 		for frame in self.possible_frames:
@@ -229,21 +238,22 @@ class Creature():
 class Explosion():
 	entities = {}
 
-	def __init__(self, location, kind, rotation):
+	def __init__(self, location, kind, explodict):
 		self.possible_frames = range(1,12)
 		self.location = location
 		self.kind = kind
-		self.rotation = rotation
-		self.frame_dict = {
-			'core': explo_core_dict,
-			'body': explo_body_dict,
-			'tip': explo_tip_dict
-		}[self.kind]
-		self.frame_dict = copy.copy(self.frame_dict)
+		self.frame_dict = explodict
+		# self.frame_dict = {
+		# 	'core': explo_core_dict,
+		# 	'body': explo_body_dict,
+		# 	'tip': explo_tip_dict
+		# }[self.kind]
+		# self.frame_dict = copy.copy(self.frame_dict)
+		print(self.frame_dict, 'HEEEEEEEEEERE')
 		self.current_frame = canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict[1])
 		self.framecounter = 1
-		if self.rotation != 0:
-			self.frameflip(rotation)
+		# if self.rotation != 0:
+		# 	self.frameflip(rotation)
 		self.explosion_tick()
 		if self.kind == 'core':
 			self.entities[str(location)] = self
@@ -263,12 +273,12 @@ class Explosion():
 	def destroy(self):
 		del self.entities[str(self.location)], self
 
-	def frameflip(self, rotation):
-		for frame in range(1,12):
-			img = ImageTk.getimage(self.frame_dict[frame])
-			img = img.rotate(rotation)
-			img = ImageTk.PhotoImage(img)
-			self.frame_dict[frame] = img
+	# def frameflip(self, rotation):
+	# 	for frame in range(1,12):
+	# 		img = ImageTk.getimage(self.frame_dict[frame])
+	# 		img = img.rotate(rotation)
+	# 		img = ImageTk.PhotoImage(img)
+	# 		self.frame_dict[frame] = img
 
 	def place_image(self,frame):
 		x, y = canvas.coords(self.current_frame)
@@ -278,10 +288,11 @@ class Explosion():
 class Bomb():
 	entities = {}
 
-	def __init__(self, location, bomblength):
+	def __init__(self, location, bomblength, explodict):
 		if str(location) in self.entities:
 			del self
 			return
+		self.explodict = explodict
 		self.location = location
 		self.kind = "bomb"
 		self.bomblength = bomblength
@@ -310,7 +321,7 @@ class Bomb():
 	def destroy(self):
 		origin_distance = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}
 		obj_met = {"Down":False, "Up":False, "Left":False, "Right":False}
-		core = Explosion(self.location, 'core', 0)
+		core = Explosion(self.location, 'core', self.explodict['core_0'])
 		for length in range(1,self.bomblength+1):
 
 			for direction, distance in origin_distance.items():
@@ -318,7 +329,8 @@ class Bomb():
 					continue
 				dx = self.location[0] + distance[0]*length
 				dy = self.location[1] + distance[1]*length
-				rotation = {"Down": 90, "Up": 270, "Left": 0, "Right": 180}[direction]
+				rotation_tip = {"Down": 90, "Up": 270, "Left": 0, "Right": 180}[direction]
+				rotation_body = {"Down": 90, "Up": 90, "Left": 0, "Right": 0}[direction]
 
 				for object in [Tile, Bomb, Item, Explosion]:
 					instance = grab_object(object,(dx,dy))
@@ -338,9 +350,9 @@ class Bomb():
 					continue
 
 				if length == self.bomblength:
-					tip = Explosion((dx,dy),'tip',rotation)
+					tip = Explosion((dx,dy),'tip',self.explodict[f'tip_{rotation_tip}'])
 					continue
-				body = Explosion((dx,dy), 'body', rotation)
+				body = Explosion((dx,dy),'body', self.explodict[f'body_{rotation_body}'])
 
 		del self.entities[str(self.location)], self
 
@@ -352,7 +364,6 @@ class Item():
 		self.frame_dict = {}
 		self.possible_frames = [1,2,3,4]
 		self.kind = random.choice(['up_speed', 'up_bomb', 'up_explosion'])
-		self.passable = True
 		self.taken = False
 		self.entities[str(location)] = self
 		shape_assign(self,1,"powerup//")
@@ -421,20 +432,15 @@ class Tile(): # Cannot pass through tiles
 		pass
 		# Random chance to assign an item upon
 
-def shape_assign(object = None, 
-				 firstframe = None, 
-				 path='', 
-				 dx=20, dy=20, 
-				 dictmode = False, 
-				 possible_frames = False):
+def shape_assign(object = None, firstframe = None, path='', dx=20, dy=20):
 
-	if dictmode: # Adds frames to a dictionary unrelated to any object
-		frame_dict  = {}
-		for frame in possible_frames:
-			img = Image.open(f"sprites//{path}//{frame}.png") #PIL transposeable image
-			frame_img = ImageTk.PhotoImage(img)
-			frame_dict[frame] = frame_img
-		return frame_dict
+	# if dictmode: # Adds frames to a dictionary unrelated to any object
+	# 	frame_dict  = {}
+	# 	for frame in possible_frames:
+	# 		img = Image.open(f"sprites//{path}//{frame}.png") #PIL transposeable image
+	# 		frame_img = ImageTk.PhotoImage(img)
+	# 		frame_dict[frame] = frame_img
+	# 	return frame_dict
 
 	# Adds frames to the dictionary of the respective object
 	for frame in object.possible_frames:
@@ -442,6 +448,44 @@ def shape_assign(object = None,
 		frame_img = ImageTk.PhotoImage(img)
 		object.frame_dict[frame] = frame_img
 	object.current_frame = canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[firstframe])
+
+def preload_explosions(object):
+	# self.explosion_dict = { # preloading explosions in memory
+	# 	'core_0': {},
+	# 	'body_0': {}, # Horizontal
+	# 	'body_90': {}, # Vertical
+	# 	'tip_0': {}, # Left
+	# 	'tip_90': {}, # Up
+	# 	'tip_180': {}, # Right
+	# 	'tip_270': {}, # Down
+	# } # preloaded explosions
+	# object.explosion_dict
+	for part in ['core', 'body', 'tip']:
+		for rotation in [0,90,180,270]:
+			for frame in range(1,12):
+				if (part == 'core') and (rotation != 0):
+					continue
+				if (part == 'body') and (rotation in [180,270]):
+					continue
+
+				img = Image.open(f"sprites//explosion//{part}//{frame}.png")
+				img = img.convert('RGBA')
+
+				new_data = []
+				imgdata = img.getdata()
+				for item in imgdata:
+					# print(item)
+					if item[:3] == (255,0,0):
+						new_data.append((0,0,255,item[3])) # replace this with color
+					else:
+						new_data.append(item)
+				img.putdata(new_data)
+
+				img = img.rotate(rotation)	
+				frame_img = ImageTk.PhotoImage(img)
+				object.explosion_dict[f'{part}_{rotation}'][frame] = frame_img
+			# print(object.explosion_dict)
+
 
 def place_image(object,frame):
 	x, y = canvas.coords(object.current_frame)
@@ -463,9 +507,10 @@ def close_handler():
 		ctypes.windll.winmm.timeEndPeriod(1)
 
 # Preloading explosion sprites
-explo_core_dict = shape_assign(path='explosion//core', dictmode = True, possible_frames = [num for num in range(1,12)])
-explo_body_dict = shape_assign(path='explosion//body', dictmode = True, possible_frames = [num for num in range(1,12)])
-explo_tip_dict = shape_assign(path='explosion//tip', dictmode = True, possible_frames = [num for num in range(1,12)])
+# hmm I might have to bypass the rotations as well
+# explo_core_dict = shape_assign(path='explosion//core', dictmode = True, possible_frames = [num for num in range(1,12)])
+# explo_body_dict = shape_assign(path='explosion//body', dictmode = True, possible_frames = [num for num in range(1,12)])
+# explo_tip_dict = shape_assign(path='explosion//tip', dictmode = True, possible_frames = [num for num in range(1,12)])
 		
 app = App()
 close_handler()

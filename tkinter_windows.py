@@ -1,5 +1,6 @@
 import sys
 from PIL import Image, ImageTk
+import color_picker as colpic
 
 class Window():
     def __init__(self, name, wintype):
@@ -81,9 +82,13 @@ def create_menu(menu):
     match menu:
         case "mainmenu":
             newmenu = Window("mainmenu","fullscreen")
-            newmenu.create_button("Singleplayer",xcord = 250,ycord = 150, method='start_singleplayer')
+            newmenu.create_button("Singleplayer",xcord = 250,ycord = 150, method='target_spmenu')
             newmenu.create_button("Multiplayer",xcord = 250,ycord = 225, method='target_mpmenu')
             newmenu.create_button("Exit",xcord = 250,ycord = 300, method='exit')
+        case 'spmenu':
+            newmenu = Window('spmenu', 'fullscreen')
+            newmenu.create_button("Start",xcord = 250,ycord = 400, method='start_singleplayer')
+            newmenu.picker = colpic.Colorpicker(interface, canvas, x = 100, y = 100, bgcolor = 'grey')
         case 'mpmenu':
             newmenu = Window('mpmenu','fullscreen')
             newmenu.create_button('Host',xcord = 250,ycord = 150, method='exit')
@@ -98,5 +103,6 @@ def handle_game_start(arg):
     match arg:
         case 'singleplayer':
             print('here')
+            playercolor = colpic
             mainmenu.destroy()
             App.start_single_player()
