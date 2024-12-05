@@ -8,6 +8,7 @@ class Window():
         self.wintype = wintype
         self.graphics = [] #canvas objects
         self.objects = [] #buttons, other
+        self.picker = None
 
         if wintype == "fullscreen":
             x0, y0 = 0, 0
@@ -79,30 +80,34 @@ class Button():
         canvas.itemconfig(self.graphics[0], fill='grey')
 
 def create_menu(menu):
+    global menuwin
     match menu:
         case "mainmenu":
-            newmenu = Window("mainmenu","fullscreen")
-            newmenu.create_button("Singleplayer",xcord = 250,ycord = 150, method='target_spmenu')
-            newmenu.create_button("Multiplayer",xcord = 250,ycord = 225, method='target_mpmenu')
-            newmenu.create_button("Exit",xcord = 250,ycord = 300, method='exit')
+            menuwin = Window("mainmenu","fullscreen")
+            menuwin.create_button("Singleplayer",xcord = 250,ycord = 150, method='target_spmenu')
+            menuwin.create_button("Multiplayer",xcord = 250,ycord = 225, method='target_mpmenu')
+            menuwin.create_button("Exit",xcord = 250,ycord = 300, method='exit')
         case 'spmenu':
-            newmenu = Window('spmenu', 'fullscreen')
-            newmenu.create_button("Start",xcord = 250,ycord = 400, method='start_singleplayer')
-            newmenu.picker = colpic.Colorpicker(interface, canvas, x = 100, y = 100, bgcolor = 'grey')
+            menuwin = Window('spmenu', 'fullscreen')
+            menuwin.create_button("Start",xcord = 250,ycord = 400, method='start_singleplayer')
+            print("here")
+            menuwin.picker = colpic.Colorpicker(interface, canvas, x = 100, y = 100, bgcolor = 'grey')
         case 'mpmenu':
-            newmenu = Window('mpmenu','fullscreen')
-            newmenu.create_button('Host',xcord = 250,ycord = 150, method='exit')
-            newmenu.create_button("Join",xcord = 250,ycord = 225, method='exit')
+            menuwin = Window('mpmenu','fullscreen')
+            menuwin.create_button('Host',xcord = 250,ycord = 150, method='exit')
+            menuwin.create_button("Join",xcord = 250,ycord = 225, method='exit')
         case "pausemenu":
-            newmenu = Window("pausemenu","overlay")
-            newmenu.create_button("Exit",xcord = 250,ycord = 200, method='exit')
-            newmenu.create_button("Return",xcord = 250,ycord = 350, method='destroy')
-    return newmenu
+            menuwin = Window("pausemenu","overlay")
+            menuwin.create_button("Exit",xcord = 250,ycord = 200, method='exit')
+            menuwin.create_button("Return",xcord = 250,ycord = 350, method='destroy')
+    return menuwin
     
 def handle_game_start(arg):
     match arg:
         case 'singleplayer':
             print('here')
-            playercolor = colpic
-            mainmenu.destroy()
-            App.start_single_player()
+            hexcolor = menuwin.picker.hexcolor
+            rgb = menuwin.picker.rgb()
+            menuwin.picker.destroy()
+            menuwin.destroy()
+            App.start_single_player( (hexcolor,rgb) )

@@ -54,13 +54,13 @@ class App():
 		interface.bind("<Escape>", lambda event: interface.destroy())
 		self.key_held = ""
 		self.keys_pressed = [] # keys currently being pressed
-		tkwin.mainmenu = tkwin.create_menu('mainmenu')
+		tkwin.menuwin = tkwin.create_menu('mainmenu')
 		interface.mainloop()
 	
-	def start_single_player(self):
+	def start_single_player(self, colortuple):
 		self.gameloop()
 		self.populate_tiles()
-		self.populate_creatures()
+		self.populate_creatures(colortuple)
 
 	def platform_handler(self):
 		if platform.system() == "Linux": # Linux handles keys differently
@@ -116,7 +116,7 @@ class App():
 				destructible = True if column_index == 1 else False
 				tile = Tile((row_index,column_index),destructible,wall)
 
-	def populate_creatures(self):
+	def populate_creatures(self, colortuple):
 		# self.player = Creature((1,1),"player")
 		for row_index, row in enumerate(map_pattern): # Adds tiles
 			for column_index, column in enumerate(row):
@@ -127,7 +127,7 @@ class App():
 				}[row[column_index]]
 				if creature_type == "bomberman": 
 					print(row_index,column_index)
-					self.player = Creature((row_index,column_index),"player")
+					self.player = Creature((row_index,column_index),'bomberman',colortuple)
 					return
 				else:
 					creature = Creature((row_index,column_index),creature_type)
@@ -135,7 +135,7 @@ class App():
 class Creature():
 	entities = {}
 	
-	def __init__(self,location, kind):
+	def __init__(self,location, kind, colortuple):
 		self.location = location
 		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_7"] # Used to import the frames
 		self.frame_dict = {} # "stand":photoimage location
@@ -148,24 +148,26 @@ class Creature():
 			'tip_180': {}, # Right
 			'tip_270': {}, # Down
 		} # preloaded explosions
-		preload_explosions(self)
+		self.bomb_dict = {} # preloading bombs in memory
+		preload_explosions(self,colortuple[1])
+		preload_bombs(self, colortuple[1])
 
 		self.current_frame = False
 		self.color = 'blue'
 		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.dx_dy = 0
-		self.kind = "bomberman"
+		self.kind = kind
 		self.bomblength = 5 if self.kind == "bomberman" else 0
 		self.speed = 10 # Lower = faster
 		self.moving = False # can't move if you're already moving
-		shape_assign(self, 'stand', dy=0)
+		shape_assign(self, 'stand', dy=0, color = colortuple[1])
 		self.entities[self.kind] = self
 
 	def kill(self):
 		canvas.delete(self.current_frame)
 		
 	def place_bomb(self):
-		bomb = Bomb(self.location, self.bomblength, self.explosion_dict)
+		bomb = Bomb(self.location, self.bomblength, self.explosion_dict, self.bomb_dict)
 
 	def frameflip(self):
 		for frame in self.possible_frames:
@@ -288,7 +290,7 @@ class Explosion():
 class Bomb():
 	entities = {}
 
-	def __init__(self, location, bomblength, explodict):
+	def __init__(self, location, bomblength, explodict, bombdict):
 		if str(location) in self.entities:
 			del self
 			return
@@ -296,11 +298,12 @@ class Bomb():
 		self.location = location
 		self.kind = "bomb"
 		self.bomblength = bomblength
-		self.possible_frames = ["bomb_1","bomb_2","bomb_3","bomb_4"]
-		self.frame_dict = {}
+		self.possible_frames = [1,2,3,4]
+		self.frame_dict = bombdict
+		self.current_frame = canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict[1])
 		self.time = 200
 		self.entities[str(location)] = self
-		shape_assign(self,"bomb_1")
+		# shape_assign(self,"bomb_1")
 		self.bomb_handler()
 	
 	def bomb_handler(self):
@@ -432,34 +435,54 @@ class Tile(): # Cannot pass through tiles
 		pass
 		# Random chance to assign an item upon
 
-def shape_assign(object = None, firstframe = None, path='', dx=20, dy=20):
-
-	# if dictmode: # Adds frames to a dictionary unrelated to any object
-	# 	frame_dict  = {}
-	# 	for frame in possible_frames:
-	# 		img = Image.open(f"sprites//{path}//{frame}.png") #PIL transposeable image
-	# 		frame_img = ImageTk.PhotoImage(img)
-	# 		frame_dict[frame] = frame_img
-	# 	return frame_dict
-
-	# Adds frames to the dictionary of the respective object
+# Adds frames to the dictionary of the respective object
+def shape_assign(object = None, firstframe = None, path='', dx=20, dy=20, color = None):
 	for frame in object.possible_frames:
 		img = Image.open(f"sprites//{path}{object.kind}//{frame}.png") #PIL transposeable image
+		if color != None:
+			img = img.convert('RGBA')
+
+			new_data = []
+			imgdata = img.getdata()
+			for item in imgdata:
+				print(item)
+				if item[:3] == (255,255,255):
+					new_data.append((*color,item[3]))			
+				elif item[:3] == (190,27,39) or item[:3] == (255,0,0) :
+					colors = [int(color[0]//1.5), int(color[1]//1.5),int(color[2]//1.5)]
+					new_data.append((*colors,item[3]))
+				else:
+					new_data.append(item)
+			img.putdata(new_data)			
 		frame_img = ImageTk.PhotoImage(img)
 		object.frame_dict[frame] = frame_img
 	object.current_frame = canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[firstframe])
 
-def preload_explosions(object):
-	# self.explosion_dict = { # preloading explosions in memory
-	# 	'core_0': {},
-	# 	'body_0': {}, # Horizontal
-	# 	'body_90': {}, # Vertical
-	# 	'tip_0': {}, # Left
-	# 	'tip_90': {}, # Up
-	# 	'tip_180': {}, # Right
-	# 	'tip_270': {}, # Down
-	# } # preloaded explosions
-	# object.explosion_dict
+def preload_bombs(object, color):
+	for frame in range(1,5):
+		img = Image.open(f"sprites//bomb//{frame}.png") #PIL transposeable image
+		if color != None:
+			img = img.convert('RGBA')
+
+			new_data = []
+			imgdata = img.getdata()
+			for item in imgdata:
+				print(item)
+				if item[:3] == (91,91,91):
+					new_data.append((int(color[0]//1.2), int(color[1]//1.2),int(color[2]//1.2),item[3]))	
+				elif item[:3] == (119,119,119):
+					new_data.append((color[0]+30, color[1]+30,color[2]+30,item[3]))	
+				# elif item[:3] == (190,27,39) or item[:3] == (255,0,0) :
+				# 	colors = [int(color[0]//1.5), int(color[1]//1.5),int(color[2]//1.5)]
+				# 	new_data.append((*colors,item[3]))
+				else:
+					new_data.append(item)
+			img.putdata(new_data)			
+		frame_img = ImageTk.PhotoImage(img)
+		object.bomb_dict[frame] = frame_img
+
+
+def preload_explosions(object, color):
 	for part in ['core', 'body', 'tip']:
 		for rotation in [0,90,180,270]:
 			for frame in range(1,12):
@@ -476,7 +499,7 @@ def preload_explosions(object):
 				for item in imgdata:
 					# print(item)
 					if item[:3] == (255,0,0):
-						new_data.append((0,0,255,item[3])) # replace this with color
+						new_data.append((*color,item[3])) # replace this with color
 					else:
 						new_data.append(item)
 				img.putdata(new_data)
@@ -505,12 +528,6 @@ def close_handler():
 		os.system("xset r on")
 	if platform.system() == "Windows":
 		ctypes.windll.winmm.timeEndPeriod(1)
-
-# Preloading explosion sprites
-# hmm I might have to bypass the rotations as well
-# explo_core_dict = shape_assign(path='explosion//core', dictmode = True, possible_frames = [num for num in range(1,12)])
-# explo_body_dict = shape_assign(path='explosion//body', dictmode = True, possible_frames = [num for num in range(1,12)])
-# explo_tip_dict = shape_assign(path='explosion//tip', dictmode = True, possible_frames = [num for num in range(1,12)])
 		
 app = App()
 close_handler()
