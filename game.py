@@ -1,14 +1,17 @@
 from tkinter import *
-import time
+from PIL import Image, ImageTk
+import tkSnack
+import tkinter_windows as tkwin
+
+import sounddevice as sd
+import soundfile as sf
+
 import random
 import os
 import platform
-import tkinter_windows as tkwin
-import copy
+import threading
 
-from PIL import Image, ImageTk
-
-map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible, 3-Bomberman
+map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible, 3-Bomberman, 4-Bomberman_2
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 	[1,0,0,3,0,0,0,0,0,2,0,0,0,0,1],
 	[1,0,1,0,1,2,1,2,1,0,1,0,1,0,1],
@@ -21,18 +24,22 @@ map_pattern = [ # 0-Nothing, 1-Indestructible, 2-Destructible, 3-Bomberman
 	[1,0,0,2,0,2,2,2,2,2,2,0,2,0,1],
 	[1,0,1,0,1,0,1,2,1,0,1,0,1,0,1],
 	[1,0,0,0,0,0,2,2,2,0,0,0,0,0,1],
-	[1,0,1,0,1,0,1,2,1,0,1,0,1,0,1],
+	[1,0,1,0,1,0,1,2,1,0,1,0,1,3,1],
 	[1,0,0,2,2,0,2,2,2,2,0,0,0,0,1],
 	[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ]
 
 keys_held = []
 
-movement_inputs = ["Up", "Down", "Left", "Right"]
+movement_inputs = {
+	'bomberman_1': ['Up', 'Down', 'Left', 'Right'],
+	'bomberman_2': ['W', 'S', 'A', 'D', 'w', 's', 'a', 'd']
+}
 
 explosion_sprites = []
 
 interface = Tk()
+# tkSnack.initializeSnack(interface)
 width = 600
 height = 600
 interface.geometry(f"{height}x{width}")
@@ -44,69 +51,105 @@ tkwin.height = height
 tkwin.interface = interface
 tkwin.canvas = canvas
 
+loop = True
+
+
 class App():
-	
+	sounds = {}
 	def __init__(self):
 		tkwin.App = self
 		self.platform_handler()
-		interface.bind("<KeyPress>", lambda event: self.start_holding(event))
-		interface.bind("<KeyRelease>", lambda event: self.stop_holding(event))
-		interface.bind("<Escape>", lambda event: interface.destroy())
-		self.key_held = ""
-		self.keys_pressed = [] # keys currently being pressed
+		interface.bind('<KeyPress>', lambda event: self.hold_handler(event,'start'))
+		interface.bind('<KeyRelease>', lambda event: self.hold_handler(event,'stop'))
+		interface.bind('<Escape>', lambda _: interface.destroy())
+		# interface.bind('<x>', self.obliterate)
 		tkwin.menuwin = tkwin.create_menu('mainmenu')
+		self.initialize_sound()
 		interface.mainloop()
-	
-	def start_single_player(self, colortuple):
+
+	def hold_handler(self, event, mode):
+		match mode:
+			case 'start':
+				for key, creature in Creature.entities.items():
+					creature.start_holding(event)
+			case 'stop':
+				for key, creature in Creature.entities.items():
+					creature.stop_holding(event)
+		
+	def initialize_sound(self):
+		for sound in os.listdir('audio'): # NEEDS REWORK
+			data,fs = sf.read(f'audio//{sound}', dtype='float32')
+			self.sounds[sound.split('.',1)[0]] = (data,fs)
+
+	def start_local_game(self, colortuple):
+		config_loop(True)
+		interface.unbind('<Escape>')
+		interface.bind('<Escape>', self.gotomainmenu)
+
 		self.gameloop()
 		self.populate_tiles()
 		self.populate_creatures(colortuple)
 
+	def gotomainmenu(self, event):
+		interface.unbind('<Escape>')
+		interface.bind('<Escape>', lambda _: interface.destroy())
+
+		config_loop(False)
+		self.obliterate()
+		tkwin.menuwin = tkwin.create_menu('mainmenu')
+
+	def obliterate(self):
+		canvas.delete('gamesprites')
+		for object in [Explosion, Bomb, Item, Creature]:
+			object.entities.clear()
+
 	def platform_handler(self):
 		if platform.system() == "Linux": # Linux handles keys differently
 			os.system("xset r off")
-			self.input_handler = self.linux_input_handler
 		if platform.system() == "Windows":
 			import ctypes
 			ctypes.windll.winmm.timeBeginPeriod(1) # fixes lag on windows, granularity related
-			self.input_handler = self.linux_input_handler # placeholder
 		
-	def linux_input_handler(self):
-		if len(keys_held) == 0:
-			return
-		if "space" in keys_held:
-			self.player.place_bomb()	
-		for key in keys_held:
-			if key in movement_inputs:
-				self.player.move(key)
+	# def input_handler(self):
+	# 	if len(keys_held) == 0:
+	# 		return
+	# 	if "space" in keys_held:
+	# 		self.player.place_bomb()	
+	# 	for key in keys_held:
+	# 		if key in movement_inputs:
+	# 			self.player.move(key)
 					
 	def gameloop(self):
-		self.input_handler()
+		# for every player in creature here
+		for key, creature in Creature.entities.items():
+			creature.input_handler()
+		if not loop:
+			return
 		interface.after(10, self.gameloop)
 
-	def start_holding(self, event):
-		if event.keysym in keys_held:
-			return
-		if event.keysym == "space":
-			keys_held.append(event.keysym)
-			return
-		if event.keysym in movement_inputs:
-			keys_held.insert(0, event.keysym)
-			return
+	# def start_holding(self, event):
+	# 	if event.keysym in keys_held:
+	# 		return
+	# 	if event.keysym == "space":
+	# 		keys_held.append(event.keysym)
+	# 		return
+	# 	if event.keysym in movement_inputs:
+	# 		keys_held.insert(0, event.keysym)
+	# 		return
 
-	def stop_holding(self, event):
-		if len(keys_held) > 1:
-			keys_held[0], keys_held[1] = keys_held[1], keys_held[0]
-		keys_held.remove(event.keysym) if event.keysym in keys_held else None
+	# def stop_holding(self, event):
+	# 	if len(keys_held) > 1:
+	# 		keys_held[0], keys_held[1] = keys_held[1], keys_held[0]
+	# 	keys_held.remove(event.keysym) if event.keysym in keys_held else None
 
 	def populate_tiles(self): # Draws map based on map_pattern
 		wall_list = ["wall","strongwall"]
 		
-		canvas.create_rectangle(0,0,height, width, fill='green', width=0)
+		canvas.create_rectangle(0,0,height, width, fill='green', width=0, tag='gamesprites')
 		for row in range(15): # Adds some variety to the floor
 			for column in range(15):
 				if (column%2) == 1 and (row%2)==1:
-					canvas.create_rectangle((40*row),(40*column),40+(40*row),40+(40*column), fill="#439229", width=0)
+					canvas.create_rectangle((40*row),(40*column),40+(40*row),40+(40*column), fill="#439229", width=0, tag='gamesprites')
 						
 		for row_index, row in enumerate(map_pattern): # Adds tiles
 			for column_index, column in enumerate(row):
@@ -117,7 +160,8 @@ class App():
 				tile = Tile((row_index,column_index),destructible,wall)
 
 	def populate_creatures(self, colortuple):
-		# self.player = Creature((1,1),"player")
+		counter = 0
+
 		for row_index, row in enumerate(map_pattern): # Adds tiles
 			for column_index, column in enumerate(row):
 				if row[column_index] not in [3]:
@@ -126,16 +170,20 @@ class App():
 					3: "bomberman"
 				}[row[column_index]]
 				if creature_type == "bomberman": 
-					print(row_index,column_index)
-					self.player = Creature((row_index,column_index),'bomberman',colortuple)
-					return
+					counter += 1
+					Creature((row_index,column_index),f'bomberman_{counter}',colortuple[counter-1])
+					if self.singleplayer:
+						return
 				else:
-					creature = Creature((row_index,column_index),creature_type)
+					Creature((row_index,column_index),creature_type)
 			
 class Creature():
 	entities = {}
-	
+
 	def __init__(self,location, kind, colortuple):
+		self.keys_held = []
+		self.bomb_input = {'bomberman_1': 'space', 'bomberman_2': 'f'}[kind]
+
 		self.location = location
 		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_7"] # Used to import the frames
 		self.frame_dict = {} # "stand":photoimage location
@@ -157,17 +205,40 @@ class Creature():
 		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.dx_dy = 0
 		self.kind = kind
-		self.bomblength = 5 if self.kind == "bomberman" else 0
-		self.speed = 10 # Lower = faster
+		self.bomblength = 5
+		self.speed = 7 # Lower = faster
 		self.moving = False # can't move if you're already moving
 		shape_assign(self, 'stand', dy=0, color = colortuple[1])
 		self.entities[self.kind] = self
 
+	def input_handler(self):
+		if len(self.keys_held) == 0:
+			return
+		# if "space" in self.keys_held:
+		# 	Bomb(self.location, self.bomblength, self.explosion_dict, self.bomb_dict)	
+		for key in self.keys_held:
+			if key == self.bomb_input:
+				Bomb(self.location, self.bomblength, self.explosion_dict, self.bomb_dict)	
+			if key in movement_inputs[self.kind]:
+				self.move(key)
+
+	def start_holding(self, event):
+		if event.keysym in self.keys_held:
+			return
+		if event.keysym in self.bomb_input:
+			self.keys_held.append(event.keysym)
+			return
+		if event.keysym in movement_inputs[self.kind]:
+			self.keys_held.insert(0, event.keysym)
+			return
+
+	def stop_holding(self, event):
+		if len(self.keys_held) > 1:
+			self.keys_held[0], self.keys_held[1] = self.keys_held[1], self.keys_held[0]
+		self.keys_held.remove(event.keysym) if event.keysym in self.keys_held else None
+
 	def kill(self):
 		canvas.delete(self.current_frame)
-		
-	def place_bomb(self):
-		bomb = Bomb(self.location, self.bomblength, self.explosion_dict, self.bomb_dict)
 
 	def frameflip(self):
 		for frame in self.possible_frames:
@@ -184,6 +255,8 @@ class Creature():
 		return False
 
 	def move(self, direction):
+		if self.kind != 'bomberman_1':
+			direction = convert_secondary_inputs(direction)
 		dx_dy = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}[direction]
 		if (self.moving == True) or (self.occupied_check(dx_dy)):
 			return # Space occupied
@@ -201,6 +274,8 @@ class Creature():
 		self.move_tick(0, frames_choice)
 
 	def move_tick(self,counter,frame_to_print):
+			if not loop:
+				return
 			if counter == 40:
 				if len(keys_held) == 0:
 					self.moving = False
@@ -217,6 +292,8 @@ class Creature():
 				self.location = (self.location[0]+self.dx_dy[0], self.location[1]+self.dx_dy[1])
 				item = grab_object(Item,self.location)
 				if item:
+					# worker = threading.Thread(target=runsound, args=(App.sounds['powerup'],))
+					# worker.start()
 					match item.kind:
 						case 'up_speed':
 							self.speed -= 1
@@ -225,8 +302,6 @@ class Creature():
 						case 'up_explosion':
 							self.bomblength += 1
 					item.destroy()
-
-				print(self.location)
 
 			if counter%10 == 0:
 				frame_to_print.append(frame_to_print.pop(0)) # cycles through the frames
@@ -245,23 +320,16 @@ class Explosion():
 		self.location = location
 		self.kind = kind
 		self.frame_dict = explodict
-		# self.frame_dict = {
-		# 	'core': explo_core_dict,
-		# 	'body': explo_body_dict,
-		# 	'tip': explo_tip_dict
-		# }[self.kind]
-		# self.frame_dict = copy.copy(self.frame_dict)
-		print(self.frame_dict, 'HEEEEEEEEEERE')
-		self.current_frame = canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict[1])
+		self.current_frame = canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict[1], tag='gamesprites')
 		self.framecounter = 1
-		# if self.rotation != 0:
-		# 	self.frameflip(rotation)
 		self.explosion_tick()
 		if self.kind == 'core':
 			self.entities[str(location)] = self
 			interface.after(50, self.destroy)
 
 	def explosion_tick(self):
+		if not loop:
+			return
 		self.framecounter += 1
 
 		if self.framecounter == 12:
@@ -270,22 +338,15 @@ class Explosion():
 			return
 
 		place_image(self,self.framecounter)
-		canvas.after(30, self.explosion_tick)
+		canvas.after(50, self.explosion_tick)
 	
 	def destroy(self):
 		del self.entities[str(self.location)], self
 
-	# def frameflip(self, rotation):
-	# 	for frame in range(1,12):
-	# 		img = ImageTk.getimage(self.frame_dict[frame])
-	# 		img = img.rotate(rotation)
-	# 		img = ImageTk.PhotoImage(img)
-	# 		self.frame_dict[frame] = img
-
 	def place_image(self,frame):
 		x, y = canvas.coords(self.current_frame)
 		canvas.delete(self.current_frame)
-		self.current_frame = canvas.create_image(x,y,image=self.frame_dict[frame])
+		self.current_frame = canvas.create_image(x,y,image=self.frame_dict[frame], tag='gamesprites')
 
 class Bomb():
 	entities = {}
@@ -300,22 +361,26 @@ class Bomb():
 		self.bomblength = bomblength
 		self.possible_frames = [1,2,3,4]
 		self.frame_dict = bombdict
-		self.current_frame = canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict[1])
+		self.current_frame = canvas.create_image(20+(40*self.location[0]),20+(40*self.location[1]),image=self.frame_dict[1], tag='gamesprites')
 		self.time = 200
 		self.entities[str(location)] = self
-		# shape_assign(self,"bomb_1")
 		self.bomb_handler()
 	
 	def bomb_handler(self):
 		self.bomb_tick()
 
 	def bomb_tick(self):
+		if not loop:
+			return
 		self.time -= 1
 		if self.time%10 == 0:
 			self.possible_frames.append(self.possible_frames.pop(0))
 			place_image(self,self.possible_frames[0])
 		
 		if self.time <= 0:
+			# worker = threading.Thread(target=runsound, args=(App.sounds['explosion'],))
+			# worker.start()
+			# sd.play(*App.sounds['explosion'])
 			canvas.delete(self.current_frame)
 			self.destroy()
 			return
@@ -344,6 +409,7 @@ class Bomb():
 					match instance:
 						case Bomb():
 							instance.time = 0
+							# interface.after(1, self.set_time)
 						case Item():
 							instance.destroy()
 						case Tile(kind='wall'):
@@ -368,17 +434,23 @@ class Item():
 		self.possible_frames = [1,2,3,4]
 		self.kind = random.choice(['up_speed', 'up_bomb', 'up_explosion'])
 		self.taken = False
+		self.destroying = False 
 		self.entities[str(location)] = self
 		shape_assign(self,1,"powerup//")
 		self.item_tick()
 	
 	def item_tick(self):
+		if not loop:
+			return
 		if self.taken == False:
 			self.possible_frames.append(self.possible_frames.pop(0))
 			place_image(self,self.possible_frames[0])
-			canvas.after(40, self.item_tick)
+			canvas.after(90, self.item_tick)
 
 	def destroy(self):
+		if self.destroying:
+			return
+		self.destroying = True
 		self.taken = True
 		canvas.delete(self.current_frame)
 
@@ -391,6 +463,8 @@ class Item():
 		self.destroy_tick()
 	
 	def destroy_tick(self):
+		if not loop:
+			return
 		self.frame += 1
 		place_image(self,self.possible_frames[0])
 		if self.frame == self.possible_frames[1]+1:
@@ -420,8 +494,10 @@ class Tile(): # Cannot pass through tiles
 		Item(self.location) if (random.random() > 0.5) else None
 
 	def tile_tick(self):
+		if not loop:
+			return
+		
 		self.framecounter += 1
-
 		if self.framecounter == 10:
 			canvas.delete(self.current_frame)
 			self.drop_item()
@@ -438,7 +514,8 @@ class Tile(): # Cannot pass through tiles
 # Adds frames to the dictionary of the respective object
 def shape_assign(object = None, firstframe = None, path='', dx=20, dy=20, color = None):
 	for frame in object.possible_frames:
-		img = Image.open(f"sprites//{path}{object.kind}//{frame}.png") #PIL transposeable image
+		spritesfolder = object.kind.split('_',1)[0] if 'bomberman' in object.kind else object.kind
+		img = Image.open(f"sprites//{path}{spritesfolder}//{frame}.png") #PIL transposeable image
 		if color != None:
 			img = img.convert('RGBA')
 
@@ -456,7 +533,7 @@ def shape_assign(object = None, firstframe = None, path='', dx=20, dy=20, color 
 			img.putdata(new_data)			
 		frame_img = ImageTk.PhotoImage(img)
 		object.frame_dict[frame] = frame_img
-	object.current_frame = canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[firstframe])
+	object.current_frame = canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[firstframe], tag='gamesprites')
 
 def preload_bombs(object, color):
 	for frame in range(1,5):
@@ -509,11 +586,30 @@ def preload_explosions(object, color):
 				object.explosion_dict[f'{part}_{rotation}'][frame] = frame_img
 			# print(object.explosion_dict)
 
+def runsound(arg):
+	sd.play(*arg)
+
+def config_loop(arg):
+	global loop
+	if arg:
+		loop = True
+	else:
+		loop = False
+
+def convert_secondary_inputs(input):
+	input = input.lower()
+	map = {
+		'w': 'Up',
+		's': 'Down',
+		'a': 'Left',
+		'd': 'Right'
+	}[input]
+	return map
 
 def place_image(object,frame):
 	x, y = canvas.coords(object.current_frame)
 	canvas.delete(object.current_frame)
-	object.current_frame = canvas.create_image(x,y,image=object.frame_dict[frame])
+	object.current_frame = canvas.create_image(x,y,image=object.frame_dict[frame], tag='gamesprites')
 
 def find_by_location(object, location):
 	return str(location) in object.entities

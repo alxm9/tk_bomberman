@@ -24,6 +24,7 @@ class Window():
             img = Image.open(f"sprites//tkbombermanlogo.png") #PIL transposeable image
             self.logo = ImageTk.PhotoImage(img)
             canvas.create_image(300, 100,image=self.logo)
+            canvas.create_text(5,595, text = "Alex M. 2024\ngithub.com/alxm9", anchor = 'sw', font=("sans-serif",10))
             # self.graphics.append(logo
 
 
@@ -84,30 +85,45 @@ def create_menu(menu):
     match menu:
         case "mainmenu":
             menuwin = Window("mainmenu","fullscreen")
-            menuwin.create_button("Singleplayer",xcord = 250,ycord = 150, method='target_spmenu')
+            menuwin.create_button("Local Game",xcord = 250,ycord = 150, method='target_localmenu')
             menuwin.create_button("Multiplayer",xcord = 250,ycord = 225, method='target_mpmenu')
             menuwin.create_button("Exit",xcord = 250,ycord = 300, method='exit')
+        case 'localmenu':
+            menuwin = Window('localmenu', 'fullscreen')
+            menuwin.create_button('1 Player',xcord = 250,ycord = 150, method='target_spmenu')
+            menuwin.create_button('2 Players',xcord = 250,ycord = 225, method='target_2pmenu')
         case 'spmenu':
+            App.singleplayer = True
             menuwin = Window('spmenu', 'fullscreen')
-            menuwin.create_button("Start",xcord = 250,ycord = 400, method='start_singleplayer')
-            print("here")
+            menuwin.create_button("Start",xcord = 250,ycord = 400, method='start_localgame')
             menuwin.picker = colpic.Colorpicker(interface, canvas, x = 100, y = 100, bgcolor = 'grey')
+        case '2pmenu':
+            App.singleplayer = False
+            menuwin = Window('spmenu', 'fullscreen')
+            menuwin.create_button("Start",xcord = 250,ycord = 500, method='start_localgame_2')
+            menuwin.picker = colpic.Colorpicker(interface, canvas, x = 100, y = 10, bgcolor = 'grey', name = "picker1")
+            menuwin.picker2 = colpic.Colorpicker(interface, canvas, x = 100, y = 240, bgcolor = 'grey', name = "picker2")
         case 'mpmenu':
             menuwin = Window('mpmenu','fullscreen')
             menuwin.create_button('Host',xcord = 250,ycord = 150, method='exit')
             menuwin.create_button("Join",xcord = 250,ycord = 225, method='exit')
-        case "pausemenu":
-            menuwin = Window("pausemenu","overlay")
-            menuwin.create_button("Exit",xcord = 250,ycord = 200, method='exit')
-            menuwin.create_button("Return",xcord = 250,ycord = 350, method='destroy')
+        # case "pausemenu":
+        #     menuwin = Window("pausemenu","overlay")
+        #     menuwin.create_button("Exit",xcord = 250,ycord = 200, method='exit')
+        #     menuwin.create_button("Return",xcord = 250,ycord = 350, method='destroy')
     return menuwin
     
 def handle_game_start(arg):
     match arg:
-        case 'singleplayer':
-            print('here')
-            hexcolor = menuwin.picker.hexcolor
-            rgb = menuwin.picker.rgb()
+        case 'localgame':
+            hex_rgb = menuwin.picker.hex_rgb()
             menuwin.picker.destroy()
             menuwin.destroy()
-            App.start_single_player( (hexcolor,rgb) )
+            App.start_local_game( (hex_rgb,) )
+        case 'localgame_2':
+            hex_rgb = menuwin.picker.hex_rgb()
+            hex_rgb_2 = menuwin.picker2.hex_rgb()
+            menuwin.picker.destroy()
+            menuwin.picker2.destroy()
+            menuwin.destroy()
+            App.start_local_game( (hex_rgb, hex_rgb_2) )
