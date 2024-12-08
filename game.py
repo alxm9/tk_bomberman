@@ -1,11 +1,11 @@
 from tkinter import *
 from PIL import Image, ImageTk
-import tkSnack
 import tkinter_windows as tkwin
 
 import sounddevice as sd
 import soundfile as sf
 
+import time
 import random
 import os
 import platform
@@ -109,15 +109,6 @@ class App():
 		if platform.system() == "Windows":
 			import ctypes
 			ctypes.windll.winmm.timeBeginPeriod(1) # fixes lag on windows, granularity related
-		
-	# def input_handler(self):
-	# 	if len(keys_held) == 0:
-	# 		return
-	# 	if "space" in keys_held:
-	# 		self.player.place_bomb()	
-	# 	for key in keys_held:
-	# 		if key in movement_inputs:
-	# 			self.player.move(key)
 					
 	def gameloop(self):
 		# for every player in creature here
@@ -126,21 +117,6 @@ class App():
 		if not loop:
 			return
 		interface.after(10, self.gameloop)
-
-	# def start_holding(self, event):
-	# 	if event.keysym in keys_held:
-	# 		return
-	# 	if event.keysym == "space":
-	# 		keys_held.append(event.keysym)
-	# 		return
-	# 	if event.keysym in movement_inputs:
-	# 		keys_held.insert(0, event.keysym)
-	# 		return
-
-	# def stop_holding(self, event):
-	# 	if len(keys_held) > 1:
-	# 		keys_held[0], keys_held[1] = keys_held[1], keys_held[0]
-	# 	keys_held.remove(event.keysym) if event.keysym in keys_held else None
 
 	def populate_tiles(self): # Draws map based on map_pattern
 		wall_list = ["wall","strongwall"]
@@ -274,43 +250,43 @@ class Creature():
 		self.move_tick(0, frames_choice)
 
 	def move_tick(self,counter,frame_to_print):
-			if not loop:
+		if not loop:
+			return
+		if counter == 40:
+			if len(keys_held) == 0:
+				self.moving = False
+				place_image(self,"stand")
 				return
-			if counter == 40:
-				if len(keys_held) == 0:
-					self.moving = False
-					place_image(self,"stand")
-					return
-				else:
-					place_image(self,"stand")
-					self.moving = False
-					if keys_held[0] in movement_inputs:
-						self.move(keys_held[0])
-				return
-			
-			if counter == 20: # entity collision
-				self.location = (self.location[0]+self.dx_dy[0], self.location[1]+self.dx_dy[1])
-				item = grab_object(Item,self.location)
-				if item:
-					# worker = threading.Thread(target=runsound, args=(App.sounds['powerup'],))
-					# worker.start()
-					match item.kind:
-						case 'up_speed':
-							self.speed -= 1
-						case 'up_bomb':
-							pass
-						case 'up_explosion':
-							self.bomblength += 1
-					item.destroy()
+			else:
+				place_image(self,"stand")
+				self.moving = False
+				if keys_held[0] in movement_inputs:
+					self.move(keys_held[0])
+			return
+		
+		if counter == 20: # entity collision
+			self.location = (self.location[0]+self.dx_dy[0], self.location[1]+self.dx_dy[1])
+			item = grab_object(Item,self.location)
+			if item:
+				# worker = threading.Thread(target=runsound, args=(App.sounds['powerup'],))
+				# worker.start()
+				match item.kind:
+					case 'up_speed':
+						self.speed -= 1
+					case 'up_bomb':
+						pass
+					case 'up_explosion':
+						self.bomblength += 1
+				item.destroy()
 
-			if counter%10 == 0:
-				frame_to_print.append(frame_to_print.pop(0)) # cycles through the frames
-				place_image(self,self.possible_frames[frame_to_print[0]])
+		if counter%10 == 0:
+			frame_to_print.append(frame_to_print.pop(0)) # cycles through the frames
+			place_image(self,self.possible_frames[frame_to_print[0]])
 
-			counter += 1
+		counter += 1
 
-			canvas.move(self.current_frame, self.dx_dy[0], self.dx_dy[1])
-			canvas.after(self.speed, self.move_tick, counter, frame_to_print)
+		canvas.move(self.current_frame, self.dx_dy[0], self.dx_dy[1])
+		canvas.after(self.speed, self.move_tick, counter, frame_to_print)
 
 class Explosion():
 	entities = {}
@@ -386,13 +362,31 @@ class Bomb():
 			return
 		canvas.after(10, self.bomb_handler)
 
+	def explosion_interaction(self, obj_met, direction, dx, dy):
+		for object in [Tile, Bomb, Item, Explosion]:
+			instance = grab_object(object,(dx,dy))
+			if instance:
+				obj_met[direction] = True
+			else:
+				continue
+
+			match instance:
+				case Bomb():
+					instance.time = 0
+					# interface.after(1, self.set_time)
+				case Item():
+					instance.destroy()
+				case Tile(kind='wall'):
+					instance.destroy()		
+
 	def destroy(self):
+		timer1 = time.time()
 		origin_distance = {"Down":(0,1), "Up":(0,-1),"Left":(-1,0),"Right":(1,0)}
 		obj_met = {"Down":False, "Up":False, "Left":False, "Right":False}
-		core = Explosion(self.location, 'core', self.explodict['core_0'])
+		Explosion(self.location, 'core', self.explodict['core_0'])
 		for length in range(1,self.bomblength+1):
-
 			for direction, distance in origin_distance.items():
+				
 				if obj_met[direction] == True:
 					continue
 				dx = self.location[0] + distance[0]*length
@@ -400,30 +394,18 @@ class Bomb():
 				rotation_tip = {"Down": 90, "Up": 270, "Left": 0, "Right": 180}[direction]
 				rotation_body = {"Down": 90, "Up": 90, "Left": 0, "Right": 0}[direction]
 
-				for object in [Tile, Bomb, Item, Explosion]:
-					instance = grab_object(object,(dx,dy))
-					if instance:
-						obj_met[direction] = True
-					else:
-						continue
-					match instance:
-						case Bomb():
-							instance.time = 0
-							# interface.after(1, self.set_time)
-						case Item():
-							instance.destroy()
-						case Tile(kind='wall'):
-							instance.destroy()
+				self.explosion_interaction(obj_met, direction, dx, dy)
 				
 				if obj_met[direction]:
 					continue
 
 				if length == self.bomblength:
-					tip = Explosion((dx,dy),'tip',self.explodict[f'tip_{rotation_tip}'])
+					Explosion((dx,dy),'tip',self.explodict[f'tip_{rotation_tip}'])
 					continue
-				body = Explosion((dx,dy),'body', self.explodict[f'body_{rotation_body}'])
+				Explosion((dx,dy),'body', self.explodict[f'body_{rotation_body}'])
 
 		del self.entities[str(self.location)], self
+		print(time.time() - timer1, "ELAPSED TIME")
 
 class Item():
 	entities = {}
@@ -549,9 +531,6 @@ def preload_bombs(object, color):
 					new_data.append((int(color[0]//1.2), int(color[1]//1.2),int(color[2]//1.2),item[3]))	
 				elif item[:3] == (119,119,119):
 					new_data.append((color[0]+30, color[1]+30,color[2]+30,item[3]))	
-				# elif item[:3] == (190,27,39) or item[:3] == (255,0,0) :
-				# 	colors = [int(color[0]//1.5), int(color[1]//1.5),int(color[2]//1.5)]
-				# 	new_data.append((*colors,item[3]))
 				else:
 					new_data.append(item)
 			img.putdata(new_data)			
