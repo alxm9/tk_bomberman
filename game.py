@@ -61,20 +61,22 @@ class App():
 		self.platform_handler()
 		interface.bind('<KeyPress>', lambda event: self.hold_handler(event,'start'))
 		interface.bind('<KeyRelease>', lambda event: self.hold_handler(event,'stop'))
-		interface.bind('<Escape>', lambda _: interface.destroy())
+		interface.bind('<Escape>', lambda _: close_handler())
+		interface.bind('<Destroy>', lambda _: close_handler())
 		# interface.bind('<x>', self.obliterate)
 		tkwin.menuwin = tkwin.create_menu('mainmenu')
 		self.initialize_sound()
 		interface.mainloop()
 
 	def hold_handler(self, event, mode):
+		print(Creature.entities)
 		match mode:
 			case 'start':
 				for key, creature in Creature.entities.items():
-					creature.start_holding(event)
+					creature.start_holding(event) if creature.alive else None
 			case 'stop':
 				for key, creature in Creature.entities.items():
-					creature.stop_holding(event)
+					creature.stop_holding(event) if creature.alive else None
 		
 	def initialize_sound(self):
 		for sound in os.listdir('audio'): # NEEDS REWORK
@@ -160,7 +162,6 @@ class Creature():
 		self.keys_held = []
 		self.bomb_input = {'bomberman_1': 'space', 'bomberman_2': 'f'}[kind]
 
-		self.location = location
 		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_7"] # Used to import the frames
 		self.frame_dict = {} # "stand":photoimage location
 		self.explosion_dict = { # preloading explosions in memory
@@ -176,8 +177,9 @@ class Creature():
 		preload_explosions(self,colortuple[1])
 		preload_bombs(self, colortuple[1])
 
+		self.location = location
+		self.alive = True
 		self.current_frame = False
-		self.color = 'blue'
 		self.facing = "Left" # Direction currently facing. For frame flip check.
 		self.dx_dy = 0
 		self.kind = kind
@@ -215,6 +217,8 @@ class Creature():
 
 	def kill(self):
 		canvas.delete(self.current_frame)
+		self.keys_held = []
+		self.alive = False
 
 	def frameflip(self):
 		for frame in self.possible_frames:
@@ -250,7 +254,7 @@ class Creature():
 		self.move_tick(0, frames_choice)
 
 	def move_tick(self,counter,frame_to_print):
-		if not loop:
+		if not loop or not self.alive:
 			return
 		if counter == 40:
 			if len(keys_held) == 0:
@@ -362,9 +366,9 @@ class Bomb():
 			return
 		canvas.after(10, self.bomb_handler)
 
-	def explosion_interaction(self, obj_met, direction, dx, dy):
+	def explosion_interaction(self, obj_met, direction, xcord, ycord):
 		for object in [Tile, Bomb, Item, Explosion]:
-			instance = grab_object(object,(dx,dy))
+			instance = grab_object(object,(xcord,ycord))
 			if instance:
 				obj_met[direction] = True
 			else:
@@ -377,7 +381,9 @@ class Bomb():
 				case Item():
 					instance.destroy()
 				case Tile(kind='wall'):
-					instance.destroy()		
+					instance.destroy()	
+		for creature in Creature.entities:
+			kill_creature(creature,(xcord,ycord))
 
 	def destroy(self):
 		timer1 = time.time()
@@ -389,20 +395,20 @@ class Bomb():
 				
 				if obj_met[direction] == True:
 					continue
-				dx = self.location[0] + distance[0]*length
-				dy = self.location[1] + distance[1]*length
+				xcord = self.location[0] + distance[0]*length
+				ycord = self.location[1] + distance[1]*length
 				rotation_tip = {"Down": 90, "Up": 270, "Left": 0, "Right": 180}[direction]
 				rotation_body = {"Down": 90, "Up": 90, "Left": 0, "Right": 0}[direction]
 
-				self.explosion_interaction(obj_met, direction, dx, dy)
+				self.explosion_interaction(obj_met, direction, xcord, ycord)
 				
 				if obj_met[direction]:
 					continue
 
 				if length == self.bomblength:
-					Explosion((dx,dy),'tip',self.explodict[f'tip_{rotation_tip}'])
+					Explosion((xcord,ycord),'tip',self.explodict[f'tip_{rotation_tip}'])
 					continue
-				Explosion((dx,dy),'body', self.explodict[f'body_{rotation_body}'])
+				Explosion((xcord,ycord),'body', self.explodict[f'body_{rotation_body}'])
 
 		del self.entities[str(self.location)], self
 		print(time.time() - timer1, "ELAPSED TIME")
@@ -598,11 +604,17 @@ def grab_object(object,location):
 		return object.entities[str(location)]
 	return False
 
+def kill_creature(creature,location):
+	if Creature.entities[creature].location == location:
+		Creature.entities[creature].kill()
+	return False
+
 def close_handler():
 	if platform.system() == "Linux":
 		os.system("xset r on")
 	if platform.system() == "Windows":
 		ctypes.windll.winmm.timeEndPeriod(1)
+	if str(interface) != '.':
+		interface.destroy()
 		
 app = App()
-close_handler()
