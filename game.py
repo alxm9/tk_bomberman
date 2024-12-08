@@ -164,6 +164,7 @@ class Creature():
 
 		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_7"] # Used to import the frames
 		self.frame_dict = {} # "stand":photoimage location
+		self.death_frame_dict = {}
 		self.explosion_dict = { # preloading explosions in memory
 			'core_0': {},
 			'body_0': {}, # Horizontal
@@ -216,9 +217,22 @@ class Creature():
 		self.keys_held.remove(event.keysym) if event.keysym in self.keys_held else None
 
 	def kill(self):
-		canvas.delete(self.current_frame)
+		# canvas.delete(self.current_frame)
 		self.keys_held = []
 		self.alive = False
+		self.kill_tick()
+
+	def kill_tick(self, counter = 0):
+		if not loop:
+			return
+		counter += 1
+
+		if counter == 25:
+			canvas.delete(self.current_frame)
+			return
+
+		place_image(self,f'death_{counter}')
+		canvas.after(50, self.kill_tick, counter)
 
 	def frameflip(self):
 		for frame in self.possible_frames:
@@ -500,6 +514,7 @@ class Tile(): # Cannot pass through tiles
 		# Random chance to assign an item upon
 
 # Adds frames to the dictionary of the respective object
+# REWORK THIS 
 def shape_assign(object = None, firstframe = None, path='', dx=20, dy=20, color = None):
 	for frame in object.possible_frames:
 		spritesfolder = object.kind.split('_',1)[0] if 'bomberman' in object.kind else object.kind
@@ -522,6 +537,26 @@ def shape_assign(object = None, firstframe = None, path='', dx=20, dy=20, color 
 		frame_img = ImageTk.PhotoImage(img)
 		object.frame_dict[frame] = frame_img
 	object.current_frame = canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[firstframe], tag='gamesprites')
+
+	if 'bomberman' not in object.kind:
+		return
+	
+	for frame in range(1,25):
+		img = Image.open(f"sprites//bomberman//death//{frame}.png")
+		new_data = []
+		imgdata = img.getdata()
+		for item in imgdata:
+			print(item)
+			if item[:3] == (255,255,255):
+				new_data.append((*color,item[3]))			
+			elif item[:3] == (190,27,39) or item[:3] == (255,0,0) :
+				colors = [int(color[0]//1.5), int(color[1]//1.5),int(color[2]//1.5)]
+				new_data.append((*colors,item[3]))
+			else:
+				new_data.append(item)
+		img.putdata(new_data)			
+		frame_img = ImageTk.PhotoImage(img)
+		object.frame_dict[f'death_{frame}'] = frame_img
 
 def preload_bombs(object, color):
 	for frame in range(1,5):
