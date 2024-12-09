@@ -164,7 +164,6 @@ class Creature():
 
 		self.possible_frames = ["stand", "walk_1", "walk_2", "walk_3", "walk_4", "walk_5", "walk_6", "walk_7"] # Used to import the frames
 		self.frame_dict = {} # "stand":photoimage location
-		self.death_frame_dict = {}
 		self.explosion_dict = { # preloading explosions in memory
 			'core_0': {},
 			'body_0': {}, # Horizontal
@@ -187,7 +186,8 @@ class Creature():
 		self.bomblength = 5
 		self.speed = 7 # Lower = faster
 		self.moving = False # can't move if you're already moving
-		shape_assign(self, 'stand', dy=0, color = colortuple[1])
+		shape_assign(self, dy=0, color = colortuple[1])
+		place_image(self,'stand',dx = 20,first_time=True)
 		self.entities[self.kind] = self
 
 	def input_handler(self):
@@ -433,12 +433,14 @@ class Item():
 	def __init__(self,location):
 		self.location = location
 		self.frame_dict = {}
-		self.possible_frames = [1,2,3,4]
 		self.kind = random.choice(['up_speed', 'up_bomb', 'up_explosion'])
 		self.taken = False
 		self.destroying = False 
 		self.entities[str(location)] = self
-		shape_assign(self,1,"powerup//")
+		shape_assign(self,extra_dir ="powerup//")
+		self.possible_frames = [frame for frame in self.frame_dict.keys()]
+		print(self.frame_dict)
+		place_image(self, '1', dx=20, dy=20,first_time = True)
 		self.item_tick()
 	
 	def item_tick(self):
@@ -459,7 +461,7 @@ class Item():
 		self.frame_dict = {}
 		self.kind = 'general_blowup'
 		self.possible_frames = [1,2,3,4,5]
-		shape_assign(self,1)
+		shape_assign(self)
 
 		self.frame = 0
 		self.destroy_tick()
@@ -486,7 +488,8 @@ class Tile(): # Cannot pass through tiles
 		self.possible_frames = ["strongwall_1"] if self.kind == 'strongwall' else [f'wall_{num}' for num in range(1,10)]
 		self.destructible = destructible
 		self.framecounter = 1 
-		shape_assign(self,self.kind+"_1", 'tiles//')
+		shape_assign(self)
+		place_image(self,self.kind+"_1",dx = 20, dy = 20,first_time=True)
 		self.entities[str(location)] = self
 		
 	def destroy(self): # If destructible tile, gets destroyed when touched by explosion
@@ -513,50 +516,81 @@ class Tile(): # Cannot pass through tiles
 		pass
 		# Random chance to assign an item upon
 
+def change_color(path, color):
+	img = Image.open(path)
+	img = img.convert('RGBA')
+	new_data = []
+	imgdata = img.getdata()
+
+	for item in imgdata:
+		if item[:3] == (255,255,255):
+			new_data.append((*color,item[3]))			
+		elif item[:3] == (190,27,39) or item[:3] == (255,0,0) :
+			colors = [int(color[0]//1.5), int(color[1]//1.5),int(color[2]//1.5)]
+			new_data.append((*colors,item[3]))
+		else:
+			new_data.append(item)
+	img.putdata(new_data)
+	return img		
+
+def shape_assign(object = None, dx=20, dy=20, color=None, path = None, extra_dir = ''):
+	if path == None:
+		path = f'sprites//{extra_dir}{'bomberman' if 'bomberman' in object.kind else object.kind}'
+
+	folder = os.listdir(path)
+	for file in folder:
+		if '.png' not in file:
+			shape_assign(object, dx, dy, color, path+f'//{file}')
+		else:
+			print(f'opening {path+f'//{file}'}')
+			img = change_color(path+f'//{file}', color) if color != None else Image.open(path+f'//{file}')
+			photoimage = ImageTk.PhotoImage(img)
+			object.frame_dict[file.split('.',1)[0]] = photoimage
+
 # Adds frames to the dictionary of the respective object
 # REWORK THIS 
-def shape_assign(object = None, firstframe = None, path='', dx=20, dy=20, color = None):
-	for frame in object.possible_frames:
-		spritesfolder = object.kind.split('_',1)[0] if 'bomberman' in object.kind else object.kind
-		img = Image.open(f"sprites//{path}{spritesfolder}//{frame}.png") #PIL transposeable image
-		if color != None:
-			img = img.convert('RGBA')
+# def shape_assign(object = None, firstframe = None, path='', dx=20, dy=20, color = None):
+# 	for frame in object.possible_frames:
+# 		spritesfolder = object.kind.split('_',1)[0] if 'bomberman' in object.kind else object.kind
+# 		img = Image.open(f"sprites//{path}{spritesfolder}//{frame}.png") #PIL transposeable image
+# 		if color != None:
+# 			img = img.convert('RGBA')
 
-			new_data = []
-			imgdata = img.getdata()
-			for item in imgdata:
-				print(item)
-				if item[:3] == (255,255,255):
-					new_data.append((*color,item[3]))			
-				elif item[:3] == (190,27,39) or item[:3] == (255,0,0) :
-					colors = [int(color[0]//1.5), int(color[1]//1.5),int(color[2]//1.5)]
-					new_data.append((*colors,item[3]))
-				else:
-					new_data.append(item)
-			img.putdata(new_data)			
-		frame_img = ImageTk.PhotoImage(img)
-		object.frame_dict[frame] = frame_img
-	object.current_frame = canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[firstframe], tag='gamesprites')
+# 			new_data = []
+# 			imgdata = img.getdata()
+# 			for item in imgdata:
+# 				print(item)
+# 				if item[:3] == (255,255,255):
+# 					new_data.append((*color,item[3]))			
+# 				elif item[:3] == (190,27,39) or item[:3] == (255,0,0) :
+# 					colors = [int(color[0]//1.5), int(color[1]//1.5),int(color[2]//1.5)]
+# 					new_data.append((*colors,item[3]))
+# 				else:
+# 					new_data.append(item)
+# 			img.putdata(new_data)			
+# 		frame_img = ImageTk.PhotoImage(img)
+# 		object.frame_dict[frame] = frame_img
+# 	object.current_frame = canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[firstframe], tag='gamesprites')
 
-	if 'bomberman' not in object.kind:
-		return
+# 	if 'bomberman' not in object.kind:
+# 		return
 	
-	for frame in range(1,25):
-		img = Image.open(f"sprites//bomberman//death//{frame}.png")
-		new_data = []
-		imgdata = img.getdata()
-		for item in imgdata:
-			print(item)
-			if item[:3] == (255,255,255):
-				new_data.append((*color,item[3]))			
-			elif item[:3] == (190,27,39) or item[:3] == (255,0,0) :
-				colors = [int(color[0]//1.5), int(color[1]//1.5),int(color[2]//1.5)]
-				new_data.append((*colors,item[3]))
-			else:
-				new_data.append(item)
-		img.putdata(new_data)			
-		frame_img = ImageTk.PhotoImage(img)
-		object.frame_dict[f'death_{frame}'] = frame_img
+# 	for frame in range(1,25):
+# 		img = Image.open(f"sprites//bomberman//death//{frame}.png")
+# 		new_data = []
+# 		imgdata = img.getdata()
+# 		for item in imgdata:
+# 			print(item)
+# 			if item[:3] == (255,255,255):
+# 				new_data.append((*color,item[3]))			
+# 			elif item[:3] == (190,27,39) or item[:3] == (255,0,0) :
+# 				colors = [int(color[0]//1.5), int(color[1]//1.5),int(color[2]//1.5)]
+# 				new_data.append((*colors,item[3]))
+# 			else:
+# 				new_data.append(item)
+# 		img.putdata(new_data)			
+# 		frame_img = ImageTk.PhotoImage(img)
+# 		object.frame_dict[f'death_{frame}'] = frame_img
 
 def preload_bombs(object, color):
 	for frame in range(1,5):
@@ -567,7 +601,6 @@ def preload_bombs(object, color):
 			new_data = []
 			imgdata = img.getdata()
 			for item in imgdata:
-				print(item)
 				if item[:3] == (91,91,91):
 					new_data.append((int(color[0]//1.2), int(color[1]//1.2),int(color[2]//1.2),item[3]))	
 				elif item[:3] == (119,119,119):
@@ -626,10 +659,14 @@ def convert_secondary_inputs(input):
 	}[input]
 	return map
 
-def place_image(object,frame):
-	x, y = canvas.coords(object.current_frame)
-	canvas.delete(object.current_frame)
-	object.current_frame = canvas.create_image(x,y,image=object.frame_dict[frame], tag='gamesprites')
+def place_image(object,frame, dx = 0, dy = 0, first_time = False):
+	match first_time:
+		case True:
+			object.current_frame = canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[frame], tag='gamesprites')
+		case False:
+			x, y = canvas.coords(object.current_frame)
+			canvas.delete(object.current_frame)
+			object.current_frame = canvas.create_image(x,y,image=object.frame_dict[frame], tag='gamesprites')
 
 def find_by_location(object, location):
 	return str(location) in object.entities
