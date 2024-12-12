@@ -2,9 +2,6 @@ from tkinter import *
 from PIL import Image, ImageTk
 import tkinter_windows as tkwin
 
-import sounddevice as sd
-import soundfile as sf
-
 import time
 import random
 import os
@@ -55,7 +52,6 @@ loop = True
 
 
 class App():
-	sounds = {}
 	def __init__(self):
 		tkwin.App = self
 		self.platform_handler()
@@ -65,7 +61,6 @@ class App():
 		interface.bind('<Destroy>', lambda _: close_handler())
 		# interface.bind('<x>', self.obliterate)
 		tkwin.menuwin = tkwin.create_menu('mainmenu')
-		self.initialize_sound()
 		interface.mainloop()
 
 	def hold_handler(self, event, mode):
@@ -77,11 +72,6 @@ class App():
 			case 'stop':
 				for key, creature in Creature.entities.items():
 					creature.stop_holding(event) if creature.alive else None
-		
-	def initialize_sound(self):
-		for sound in os.listdir('audio'): # NEEDS REWORK
-			data,fs = sf.read(f'audio//{sound}', dtype='float32')
-			self.sounds[sound.split('.',1)[0]] = (data,fs)
 
 	def start_local_game(self, colortuple):
 		config_loop(True)
@@ -286,8 +276,6 @@ class Creature():
 			self.location = (self.location[0]+self.dx_dy[0], self.location[1]+self.dx_dy[1])
 			item = grab_object(Item,self.location)
 			if item:
-				# worker = threading.Thread(target=runsound, args=(App.sounds['powerup'],))
-				# worker.start()
 				match item.kind:
 					case 'up_speed':
 						self.speed -= 1
@@ -372,9 +360,6 @@ class Bomb():
 			place_image(self,self.possible_frames[0])
 		
 		if self.time <= 0:
-			# worker = threading.Thread(target=runsound, args=(App.sounds['explosion'],))
-			# worker.start()
-			# sd.play(*App.sounds['explosion'])
 			canvas.delete(self.current_frame)
 			self.destroy()
 			return
@@ -547,51 +532,6 @@ def shape_assign(object = None, dx=20, dy=20, color=None, path = None, extra_dir
 			photoimage = ImageTk.PhotoImage(img)
 			object.frame_dict[file.split('.',1)[0]] = photoimage
 
-# Adds frames to the dictionary of the respective object
-# REWORK THIS 
-# def shape_assign(object = None, firstframe = None, path='', dx=20, dy=20, color = None):
-# 	for frame in object.possible_frames:
-# 		spritesfolder = object.kind.split('_',1)[0] if 'bomberman' in object.kind else object.kind
-# 		img = Image.open(f"sprites//{path}{spritesfolder}//{frame}.png") #PIL transposeable image
-# 		if color != None:
-# 			img = img.convert('RGBA')
-
-# 			new_data = []
-# 			imgdata = img.getdata()
-# 			for item in imgdata:
-# 				print(item)
-# 				if item[:3] == (255,255,255):
-# 					new_data.append((*color,item[3]))			
-# 				elif item[:3] == (190,27,39) or item[:3] == (255,0,0) :
-# 					colors = [int(color[0]//1.5), int(color[1]//1.5),int(color[2]//1.5)]
-# 					new_data.append((*colors,item[3]))
-# 				else:
-# 					new_data.append(item)
-# 			img.putdata(new_data)			
-# 		frame_img = ImageTk.PhotoImage(img)
-# 		object.frame_dict[frame] = frame_img
-# 	object.current_frame = canvas.create_image(dx+(40*object.location[0]),dy+(40*object.location[1]),image=object.frame_dict[firstframe], tag='gamesprites')
-
-# 	if 'bomberman' not in object.kind:
-# 		return
-	
-# 	for frame in range(1,25):
-# 		img = Image.open(f"sprites//bomberman//death//{frame}.png")
-# 		new_data = []
-# 		imgdata = img.getdata()
-# 		for item in imgdata:
-# 			print(item)
-# 			if item[:3] == (255,255,255):
-# 				new_data.append((*color,item[3]))			
-# 			elif item[:3] == (190,27,39) or item[:3] == (255,0,0) :
-# 				colors = [int(color[0]//1.5), int(color[1]//1.5),int(color[2]//1.5)]
-# 				new_data.append((*colors,item[3]))
-# 			else:
-# 				new_data.append(item)
-# 		img.putdata(new_data)			
-# 		frame_img = ImageTk.PhotoImage(img)
-# 		object.frame_dict[f'death_{frame}'] = frame_img
-
 def preload_bombs(object, color):
 	for frame in range(1,5):
 		img = Image.open(f"sprites//bomb//{frame}.png") #PIL transposeable image
@@ -638,9 +578,6 @@ def preload_explosions(object, color):
 				frame_img = ImageTk.PhotoImage(img)
 				object.explosion_dict[f'{part}_{rotation}'][frame] = frame_img
 			# print(object.explosion_dict)
-
-def runsound(arg):
-	sd.play(*arg)
 
 def config_loop(arg):
 	global loop
