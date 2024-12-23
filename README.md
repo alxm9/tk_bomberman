@@ -4,5 +4,14 @@
 
 An implementation of Bomberman using python's Tkinter module.
 
-Arrow keys - Move<br>
-Space - Place bomb
+## Local Game controls
+
+### Player 1:
+
+- **UP-DOWN-LEFT-RIGHT** - Move
+- **SPACE** - Place Bomb
+
+### Player 2:
+
+- **WASD** - Move
+- **F** - Place Bomb

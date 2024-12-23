@@ -6,6 +6,7 @@ class Window():
     def __init__(self, name, wintype):
         self.name = name
         self.wintype = wintype
+        self.host = False
         self.graphics = [] #canvas objects
         self.objects = [] #buttons, other
         self.picker = None
@@ -86,7 +87,7 @@ def create_menu(menu):
         case "mainmenu":
             menuwin = Window("mainmenu","fullscreen")
             menuwin.create_button("Local Game",xcord = 250,ycord = 150, method='target_localmenu')
-            menuwin.create_button("Multiplayer",xcord = 250,ycord = 225, method='target_mpmenu')
+            menuwin.create_button("Online Game",xcord = 250,ycord = 225, method='target_mpmenu')
             menuwin.create_button("Exit",xcord = 250,ycord = 300, method='exit')
         case 'localmenu':
             menuwin = Window('localmenu', 'fullscreen')
@@ -105,12 +106,21 @@ def create_menu(menu):
             menuwin.picker2 = colpic.Colorpicker(interface, canvas, x = 100, y = 240, bgcolor = 'grey', name = "picker2")
         case 'mpmenu':
             menuwin = Window('mpmenu','fullscreen')
-            menuwin.create_button('Host',xcord = 250,ycord = 150, method='exit')
-            menuwin.create_button("Join",xcord = 250,ycord = 225, method='exit')
+            menuwin.create_button('Host',xcord = 250,ycord = 150, method='target_mplobby_host')
+            menuwin.create_button('Join',xcord = 250,ycord = 225, method='target_mplobby_join')
         # case "pausemenu":
         #     menuwin = Window("pausemenu","overlay")
         #     menuwin.create_button("Exit",xcord = 250,ycord = 200, method='exit')
         #     menuwin.create_button("Return",xcord = 250,ycord = 350, method='destroy')
+        case 'mplobby_host':
+            menuwin = Window('mplobby','fullscreen')
+            menuwin.create_button('Start', xcord = 480, ycord = 20, method='exit')
+            menuwin.create_button('Leave', xcord = 480, ycord = 90, method='target_mainmenu')
+        case 'mplobby_join':
+            menuwin = Window('mplobby','fullscreen')
+            menuwin.create_button('Lock in', xcord = 480, ycord = 20, method='exit')
+            menuwin.create_button('Leave', xcord = 480, ycord = 90, method='target_mainmenu')
+            
     return menuwin
     
 def handle_game_start(arg):

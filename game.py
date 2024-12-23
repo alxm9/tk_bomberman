@@ -64,7 +64,6 @@ class App():
 		interface.mainloop()
 
 	def hold_handler(self, event, mode):
-		print(Creature.entities)
 		match mode:
 			case 'start':
 				for key, creature in Creature.entities.items():
@@ -410,7 +409,6 @@ class Bomb():
 				Explosion((xcord,ycord),'body', self.explodict[f'body_{rotation_body}'])
 
 		del self.entities[str(self.location)], self
-		print(time.time() - timer1, "ELAPSED TIME")
 
 class Item():
 	entities = {}
@@ -424,7 +422,6 @@ class Item():
 		self.entities[str(location)] = self
 		shape_assign(self,extra_dir ="powerup//")
 		self.possible_frames = [frame for frame in self.frame_dict.keys()]
-		print(self.frame_dict)
 		place_image(self, '1', dx=20, dy=20,first_time = True)
 		self.item_tick()
 	
@@ -441,26 +438,26 @@ class Item():
 			return
 		self.destroying = True
 		self.taken = True
-		canvas.delete(self.current_frame)
+		# canvas.delete(self.current_frame)
 
 		self.frame_dict = {}
 		self.kind = 'general_blowup'
-		self.possible_frames = [1,2,3,4,5]
 		shape_assign(self)
 
-		self.frame = 0
+		self.frame = 1
+		place_image(self,'1')
 		self.destroy_tick()
 	
 	def destroy_tick(self):
 		if not loop:
 			return
 		self.frame += 1
-		place_image(self,self.possible_frames[0])
-		if self.frame == self.possible_frames[1]+1:
+		place_image(self,str(self.frame))
+		if self.frame == 5: # ahhh
 			del self.entities[str(self.location)], self
 			return
 		else:
-			canvas.after(40, self.destroy_tick)
+			canvas.after(10, self.destroy_tick)
 
 
 class Tile(): # Cannot pass through tiles
@@ -473,11 +470,15 @@ class Tile(): # Cannot pass through tiles
 		self.possible_frames = ["strongwall_1"] if self.kind == 'strongwall' else [f'wall_{num}' for num in range(1,10)]
 		self.destructible = destructible
 		self.framecounter = 1 
+		self.destroying = False
 		shape_assign(self)
 		place_image(self,self.kind+"_1",dx = 20, dy = 20,first_time=True)
 		self.entities[str(location)] = self
 		
 	def destroy(self): # If destructible tile, gets destroyed when touched by explosion
+		if self.destroying:
+			return
+		self.destroying = True
 		self.tile_tick()
 
 	def drop_item(self):
@@ -495,7 +496,7 @@ class Tile(): # Cannot pass through tiles
 			return
 
 		place_image(self,f'wall_{self.framecounter}')
-		canvas.after(15, self.tile_tick)
+		canvas.after(20, self.tile_tick)
 
 	def assign_item(self):
 		pass
@@ -527,7 +528,6 @@ def shape_assign(object = None, dx=20, dy=20, color=None, path = None, extra_dir
 		if '.png' not in file:
 			shape_assign(object, dx, dy, color, path+f'//{file}')
 		else:
-			print(f'opening {path+f'//{file}'}')
 			img = change_color(path+f'//{file}', color) if color != None else Image.open(path+f'//{file}')
 			photoimage = ImageTk.PhotoImage(img)
 			object.frame_dict[file.split('.',1)[0]] = photoimage
@@ -567,7 +567,6 @@ def preload_explosions(object, color):
 				new_data = []
 				imgdata = img.getdata()
 				for item in imgdata:
-					# print(item)
 					if item[:3] == (255,0,0):
 						new_data.append((*color,item[3])) # replace this with color
 					else:
@@ -577,7 +576,6 @@ def preload_explosions(object, color):
 				img = img.rotate(rotation)	
 				frame_img = ImageTk.PhotoImage(img)
 				object.explosion_dict[f'{part}_{rotation}'][frame] = frame_img
-			# print(object.explosion_dict)
 
 def config_loop(arg):
 	global loop
